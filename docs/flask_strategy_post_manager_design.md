@@ -10,12 +10,12 @@
 
 首版使用以下已有数据作为初始数据源：
 
-- `data/community_posts_archive.jsonl`
+- `local/data/community_posts_archive.jsonl`
   - 全量社区帖子归档。
   - 包含列表、详情、回测基础信息和回测核心统计字段。
-- `data/original_strategy_candidates.csv`
+- `local/data/original_strategy_candidates.csv`
   - 按“原创策略帖子”规则筛选后的候选集。
-- `data/original_strategy_candidates_period_gt_1y.csv`
+- `local/data/original_strategy_candidates_period_gt_1y.csv`
   - 在原创候选集基础上增加“回测大于 1 年”的候选集。
 
 网站默认展示 `original_strategy_candidates_period_gt_1y.csv`，同时支持切换到全部归档帖子。归档文件继续由 `scripts/archive_community_posts.py --phase sync` 增量维护。
@@ -197,10 +197,10 @@ Flask Web UI
 SQLite 本地数据库
   |
 本地文件归档
-  |-- data/community_posts_archive.jsonl
-  |-- data/strategy_manager/strategies/
-  |-- data/strategy_manager/backtests/
-  |-- data/strategy_manager/jobs/
+  |-- local/data/community_posts_archive.jsonl
+  |-- local/data/strategy_manager/strategies/
+  |-- local/data/strategy_manager/backtests/
+  |-- local/data/strategy_manager/jobs/
   |
 jqcli API
   |-- community sync
@@ -240,7 +240,7 @@ jqcli/web/
 数据库路径：
 
 ```text
-data/strategy_manager/manager.sqlite3
+local/data/strategy_manager/manager.sqlite3
 ```
 
 ### 5.2 表结构
@@ -383,7 +383,7 @@ CREATE TABLE jobs (
 策略归档目录：
 
 ```text
-data/strategy_manager/
+local/data/strategy_manager/
   manager.sqlite3
   strategies/
     <post_id>/

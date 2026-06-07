@@ -1,10 +1,9 @@
 .venv/
 .env
-data/
+local/
 .claude/
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
-auto_strategy_optimizer_experiment/
 uv.lock

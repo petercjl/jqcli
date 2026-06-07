@@ -1,0 +1,80 @@
+# jqcli Troubleshooting
+
+## CLI Import Error
+
+Symptom:
+
+```text
+ImportError: cannot import name 'auth_group' from partially initialized module
+```
+
+Cause: the CLI was invoked with `python -m jqcli.cli`.
+
+Fix: use the console script:
+
+```powershell
+.\.venv\Scripts\jqcli.exe --format json auth status
+```
+
+## Missing pytest
+
+Symptom:
+
+```text
+No module named pytest
+```
+
+Fix:
+
+```powershell
+uv sync --extra test
+```
+
+Then rerun:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+## Stale Cookie Or Login Redirect
+
+Symptoms:
+
+- `auth status` reports authenticated, but live API responses contain `redirect` to `/user/login/index`
+- `backtest result` returns a login redirect
+
+Fix:
+
+```powershell
+.\.venv\Scripts\jqcli.exe --env-file .env --format json --non-interactive --timeout 30 auth login
+```
+
+Then rerun live checks without `--env-file` so the refreshed saved cookie is used:
+
+```powershell
+.\codex-skill\jqcli\scripts\smoke_readonly.ps1
+```
+
+## System Busy Response
+
+Symptom:
+
+```json
+{"status":"2","code":"20000","msg":"系统繁忙，请稍后重试"}
+```
+
+Treat this as a live service response, not a local parser failure. Retry once after a short wait. If it persists, report it separately from local test results.
+
+## Local Data Paths
+
+Expected ignored local state:
+
+```text
+local/data/
+local/experiments/
+local/logs/
+local/marketing/
+local/scripts/
+```
+
+If generated data appears at repo root, move it under `local/` and update the generating command or default path.

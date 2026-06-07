@@ -778,8 +778,8 @@ jqcli community latest --since-id <last_seen_post_id> --stream
 ```bash
 .venv/bin/python scripts/archive_community_posts.py \
   --phase sync \
-  --store data/community_posts_archive.jsonl \
-  --state data/community_posts_archive.state.json
+  --store local/data/community_posts_archive.jsonl \
+  --state local/data/community_posts_archive.state.json
 ```
 
 `sync` 模式会把列表、详情和回测信息合并到同一个 canonical JSONL。每次运行时：
@@ -795,8 +795,8 @@ jqcli community latest --since-id <last_seen_post_id> --stream
 ```bash
 .venv/bin/python scripts/archive_community_posts.py \
   --phase sync \
-  --store data/community_posts_archive.jsonl \
-  --seed data/community_posts_until_20200101.enriched.jsonl
+  --store local/data/community_posts_archive.jsonl \
+  --seed local/data/community_posts_until_20200101.enriched.jsonl
 ```
 
 限制单次补齐量，适合试跑或分批补详情：
@@ -804,7 +804,7 @@ jqcli community latest --since-id <last_seen_post_id> --stream
 ```bash
 .venv/bin/python scripts/archive_community_posts.py \
   --phase sync \
-  --store data/community_posts_archive.jsonl \
+  --store local/data/community_posts_archive.jsonl \
   --max-detail 500 \
   --max-backtest 500
 ```
@@ -827,14 +827,14 @@ jqcli community latest --since-id <last_seen_post_id> --stream
 # 1. 只抓列表信息，持续翻页直到空页、--until 或 --max-pages
 .venv/bin/python scripts/archive_community_posts.py \
   --phase list \
-  --list-out data/community_posts.list.jsonl \
+  --list-out local/data/community_posts.list.jsonl \
   --until 2020-01-01
 
 # 2. 从列表 JSONL 读取帖子，再补全 backtest.stats
 .venv/bin/python scripts/archive_community_posts.py \
   --phase enrich \
-  --list-out data/community_posts.list.jsonl \
-  --enriched-out data/community_posts.enriched.jsonl \
+  --list-out local/data/community_posts.list.jsonl \
+  --enriched-out local/data/community_posts.enriched.jsonl \
   --backtest-workers 4
 ```
 
@@ -870,7 +870,7 @@ jqcli community latest --since-id <last_seen_post_id> --stream
 
 常用参数：
 
-- `--store <path>`：统一归档 JSONL，默认 `data/community_posts_archive.jsonl`
+- `--store <path>`：统一归档 JSONL，默认 `local/data/community_posts_archive.jsonl`
 - `--seed <path>`：导入旧 JSONL，可传多次
 - `--page-size <n>`：列表接口每页条数，默认 `50`
 - `--until <date|datetime>`：抓到该发布时间以前停止
@@ -1139,3 +1139,17 @@ jqcli --env-file .env --format json community clone-strategy <post_id> --backtes
 ```
 
 当前测试覆盖 API 解析、CLI 参数、非交互确认、JSON 输出和配置读取。
+
+## Codex Skill
+
+This repository includes a Codex skill template at `codex-skill/jqcli`.
+
+Install it into the local Codex skills directory:
+
+```powershell
+.\scripts\install_codex_skill.ps1
+```
+
+The skill teaches Codex to use the jqcli console entry point, run local and API tests, perform read-only live JoinQuant smoke checks, and run a temporary compile-only write smoke check when explicitly approved.
+
+Local data, experiments, logs, marketing assets, and local-only helper scripts belong under `local/`, which is ignored by git.

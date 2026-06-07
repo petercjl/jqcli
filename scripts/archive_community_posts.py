@@ -46,7 +46,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, help="HTTP timeout in seconds")
 
     parser.add_argument("--phase", choices=("sync", "all", "list", "enrich"), default="sync")
-    parser.add_argument("--store", type=Path, default=Path("data/community_posts_archive.jsonl"), help="canonical archive JSONL for sync phase")
+    parser.add_argument("--store", type=Path, default=Path("local/data/community_posts_archive.jsonl"), help="canonical archive JSONL for sync phase")
     parser.add_argument("--seed", type=Path, action="append", default=[], help="existing JSONL to import before sync; can be repeated")
     parser.add_argument("--list-out", type=Path, help="raw list JSONL output")
     parser.add_argument("--enriched-out", type=Path, help="enriched JSONL output; defaults to <list-out>.enriched.jsonl")
@@ -166,8 +166,8 @@ def resolve_seed_paths(seed_paths: list[Path], list_out: Path | None, enriched_o
         candidates.append(list_out)
     candidates.extend(
         [
-            Path("data/community_posts_until_20200101.enriched.jsonl"),
-            Path("data/community_posts_until_20200101.list.jsonl"),
+            Path("local/data/community_posts_until_20200101.enriched.jsonl"),
+            Path("local/data/community_posts_until_20200101.list.jsonl"),
         ]
     )
     resolved: list[Path] = []

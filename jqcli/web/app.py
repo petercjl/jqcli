@@ -15,7 +15,7 @@ from .services.posts import fill_missing_logical_keys, import_posts, mark_duplic
 def create_app(config: dict[str, Any] | None = None) -> Flask:
     app = Flask(__name__)
     root = Path.cwd()
-    data_dir = root / "data"
+    data_dir = root / "local" / "data"
     manager_dir = data_dir / "strategy_manager"
     app.config.update(
         SECRET_KEY="jqcli-local",
