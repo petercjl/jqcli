@@ -18,6 +18,7 @@ class AppContext:
     api_base: str
     token: str | None
     cookie: str | None
+    allow_custom_api_base: bool
     output_format: str
     non_interactive: bool
     quiet: bool
@@ -83,6 +84,7 @@ def main(
         api_base=resolved_api_base,
         token=resolved_token,
         cookie=resolved_cookie,
+        allow_custom_api_base=allow_custom_api_base,
         output_format=output_format or str(config.data.get("default_format") or "table"),
         non_interactive=non_interactive,
         quiet=quiet,
@@ -97,8 +99,12 @@ def validate_api_base_for_credentials(
     token: str | None,
     cookie: str | None,
     allow_custom_api_base: bool = False,
+    credential_label: str = "token/cookie",
+    credential_present: bool | None = None,
 ) -> None:
-    if not (token or cookie):
+    if credential_present is None:
+        credential_present = bool(token or cookie)
+    if not credential_present:
         return
     if allow_custom_api_base or os.environ.get("JQCLI_ALLOW_CUSTOM_API_BASE") == "1":
         return
@@ -108,7 +114,7 @@ def validate_api_base_for_credentials(
     if host.endswith(".joinquant.com"):
         return
     raise UsageError(
-        "拒绝把 token/cookie 发送到非聚宽 API 地址；如确认为本地代理或测试环境，请显式传入 --allow-custom-api-base"
+        f"拒绝把 {credential_label} 发送到非聚宽 API 地址；如确认为本地代理或测试环境，请显式传入 --allow-custom-api-base"
     )
 
 

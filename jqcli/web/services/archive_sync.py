@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from typing import Any
@@ -9,10 +9,25 @@ from .jobs import update_job
 from .posts import import_posts
 
 
-def refresh_archive(db_path: Path, root: Path, archive_path: Path, candidates_path: Path, job_id: str | None = None) -> dict[str, Any]:
+def default_archive_script_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "scripts" / "archive_community_posts.py"
+
+
+def refresh_archive(
+    db_path: Path,
+    root: Path,
+    archive_path: Path,
+    candidates_path: Path,
+    *,
+    script_path: Path | None = None,
+    job_id: str | None = None,
+) -> dict[str, Any]:
+    resolved_script = (script_path or default_archive_script_path()).resolve()
+    if not resolved_script.exists():
+        raise RuntimeError(f"archive script not found: {resolved_script}")
     cmd = [
         sys.executable,
-        "scripts/archive_community_posts.py",
+        str(resolved_script),
         "--phase",
         "sync",
         "--store",
@@ -22,7 +37,8 @@ def refresh_archive(db_path: Path, root: Path, archive_path: Path, candidates_pa
     ]
     if job_id:
         update_job(db_path, job_id, message="正在增量抓取聚宽帖子")
-    proc = subprocess.run(cmd, cwd=root, text=True, capture_output=True, check=False)
+    # Script path is resolved from trusted config/package location; shell is never used.
+    proc = subprocess.run(cmd, cwd=root, text=True, capture_output=True, check=False)  # nosec B603
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr or proc.stdout or f"archive sync failed: {proc.returncode}")
     if job_id:

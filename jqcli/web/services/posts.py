@@ -11,6 +11,58 @@ from jqcli.web.db import connect, row_to_dict, rows_to_dicts
 
 from .post_labels import labels_for_post
 
+POST_COLUMNS = {
+    "id",
+    "title",
+    "url",
+    "published_at",
+    "updated_at",
+    "author_name",
+    "content",
+    "content_preview",
+    "view_count",
+    "like_count",
+    "reply_count",
+    "backtest_id",
+    "backtest_name",
+    "trading_days",
+    "period_years",
+    "annual_return",
+    "sharpe",
+    "max_drawdown",
+    "clone_count",
+    "is_original_candidate",
+    "source",
+    "raw_json",
+    "created_at",
+    "refreshed_at",
+}
+
+POST_INDEX_COLUMNS = {
+    "id",
+    "title",
+    "url",
+    "published_at",
+    "updated_at",
+    "author_name",
+    "content_preview",
+    "view_count",
+    "like_count",
+    "reply_count",
+    "backtest_id",
+    "backtest_name",
+    "trading_days",
+    "period_years",
+    "annual_return",
+    "sharpe",
+    "max_drawdown",
+    "clone_count",
+    "is_original_candidate",
+    "is_hidden_duplicate",
+    "duplicate_of",
+    "logical_key",
+}
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -82,7 +134,7 @@ def existing_post_keys(conn: Any) -> set[str]:
 
 def post_logical_key(row: dict[str, Any]) -> str:
     content = str(row.get("content_preview") or row.get("content") or "")
-    content_hash = hashlib.sha1(content.strip().encode("utf-8")).hexdigest() if content.strip() else ""
+    content_hash = hashlib.sha256(content.strip().encode("utf-8")).hexdigest() if content.strip() else ""
     parts = [
         normalize_key_part(row.get("author_name")),
         normalize_key_part(row.get("title")),
@@ -165,10 +217,13 @@ def upsert_post(conn: Any, row: dict[str, Any]) -> None:
     if existing:
         row["created_at"] = existing["created_at"]
     columns = list(row)
+    invalid_columns = set(columns) - POST_COLUMNS
+    if invalid_columns:
+        raise ValueError(f"invalid post columns: {', '.join(sorted(invalid_columns))}")
     placeholders = ",".join("?" for _ in columns)
     assignments = ",".join(f"{column}=excluded.{column}" for column in columns if column != "id")
     conn.execute(
-        f"INSERT INTO posts ({','.join(columns)}) VALUES ({placeholders}) ON CONFLICT(id) DO UPDATE SET {assignments}",
+        f"INSERT INTO posts ({','.join(columns)}) VALUES ({placeholders}) ON CONFLICT(id) DO UPDATE SET {assignments}",  # nosec B608
         [row[column] for column in columns],
     )
     upsert_post_index(conn, row)
@@ -204,10 +259,13 @@ def upsert_post_index(conn: Any, row: dict[str, Any]) -> None:
     data["duplicate_of"] = None
     data["logical_key"] = post_logical_key(row)
     columns = list(data)
+    invalid_columns = set(columns) - POST_INDEX_COLUMNS
+    if invalid_columns:
+        raise ValueError(f"invalid post index columns: {', '.join(sorted(invalid_columns))}")
     placeholders = ",".join("?" for _ in columns)
     assignments = ",".join(f"{column}=excluded.{column}" for column in columns if column != "id")
     conn.execute(
-        f"INSERT INTO post_index({','.join(columns)}) VALUES({placeholders}) ON CONFLICT(id) DO UPDATE SET {assignments}",
+        f"INSERT INTO post_index({','.join(columns)}) VALUES({placeholders}) ON CONFLICT(id) DO UPDATE SET {assignments}",  # nosec B608
         [data[column] for column in columns],
     )
 
@@ -363,7 +421,7 @@ def list_posts(db_path: Path, params: dict[str, Any]) -> dict[str, Any]:
         list_table = "post_index p INDEXED BY idx_post_index_published_at"
     offset = (page - 1) * page_size
     with connect(db_path) as conn:
-        total = conn.execute(f"SELECT COUNT(*) AS c FROM post_index p {joins} {where}", values).fetchone()["c"]
+        total = conn.execute(f"SELECT COUNT(*) AS c FROM post_index p {joins} {where}", values).fetchone()["c"]  # nosec B608
         rows = conn.execute(
             f"""
             SELECT p.id,
@@ -404,7 +462,7 @@ def list_posts(db_path: Path, params: dict[str, Any]) -> dict[str, Any]:
             {where}
             {order_by}
             LIMIT ? OFFSET ?
-            """,
+            """,  # nosec B608
             values + [page_size, offset],
         ).fetchall()
         items = rows_to_dicts(rows)
@@ -431,7 +489,9 @@ def attach_labels(conn: Any, items: list[dict[str, Any]]) -> None:
         return
     ids = [item["id"] for item in items]
     placeholders = ",".join("?" for _ in ids)
-    rows = conn.execute(f"SELECT post_id, label FROM post_labels WHERE post_id IN ({placeholders}) ORDER BY label", ids).fetchall()
+    rows = conn.execute(
+        f"SELECT post_id, label FROM post_labels WHERE post_id IN ({placeholders}) ORDER BY label", ids  # nosec B608
+    ).fetchall()
     grouped: dict[str, list[str]] = {post_id: [] for post_id in ids}
     for row in rows:
         grouped[row["post_id"]].append(row["label"])

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from typing import Any
 
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request, url_for
@@ -15,6 +16,7 @@ from .services.posts import get_post, import_posts, list_posts
 from .services.strategy_download import download_strategy_for_post
 
 bp = Blueprint("web", __name__)
+SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 @bp.get("/")
@@ -29,6 +31,8 @@ def posts_page():
 
 @bp.get("/posts/<post_id>")
 def post_detail_page(post_id: str):
+    if not valid_post_id(post_id):
+        return "invalid post id", 400
     return render_template("post_detail.html", post_id=post_id)
 
 
@@ -45,6 +49,8 @@ def api_reindex():
 
 @bp.get("/api/posts/<post_id>")
 def api_post(post_id: str):
+    if not valid_post_id(post_id):
+        return jsonify({"error": "invalid post id"}), 400
     post = get_post(db_path(), post_id)
     if not post:
         return jsonify({"error": "not found"}), 404
@@ -53,6 +59,8 @@ def api_post(post_id: str):
 
 @bp.post("/api/posts/<post_id>/download")
 def api_download(post_id: str):
+    if not valid_post_id(post_id):
+        return jsonify({"error": "invalid post id"}), 400
     db = db_path()
     mgr = manager_dir()
     client_config = client_settings()
@@ -68,6 +76,8 @@ def api_download(post_id: str):
 def api_standardize(post_id: str):
     from .services.code_standardizer import standardize_code
 
+    if not valid_post_id(post_id):
+        return jsonify({"error": "invalid post id"}), 400
     with connect(db_path()) as conn:
         archive = row_to_dict(conn.execute("SELECT * FROM strategy_archives WHERE post_id=?", (post_id,)).fetchone())
         if not archive:
@@ -84,6 +94,8 @@ def api_standardize(post_id: str):
 
 @bp.post("/api/posts/<post_id>/backtests")
 def api_submit_backtest(post_id: str):
+    if not valid_post_id(post_id):
+        return jsonify({"error": "invalid post id"}), 400
     payload = request.get_json(silent=True) or {}
     start_date = str(payload.get("start_date") or current_app.config["JQCLI_BACKTEST_START"])
     end_date = str(payload.get("end_date") or current_app.config["JQCLI_BACKTEST_END"])
@@ -111,6 +123,8 @@ def api_submit_backtest(post_id: str):
 
 @bp.get("/api/posts/<post_id>/backtests")
 def api_backtests(post_id: str):
+    if not valid_post_id(post_id):
+        return jsonify({"error": "invalid post id"}), 400
     with connect(db_path()) as conn:
         rows = conn.execute("SELECT * FROM backtest_runs WHERE post_id = ? ORDER BY id DESC", (post_id,)).fetchall()
     return jsonify({"items": rows_to_dicts(rows)})
@@ -131,9 +145,10 @@ def api_refresh():
     root = root_dir()
     archive = archive_path()
     candidates = candidates_path()
+    script = archive_script_path()
 
     def run(job_id: str) -> dict[str, Any]:
-        return refresh_archive(db, root, archive, candidates, job_id=job_id)
+        return refresh_archive(db, root, archive, candidates, script_path=script, job_id=job_id)
 
     return jsonify({"job_id": start_job(db, "refresh", run, "准备刷新数据")})
 
@@ -164,6 +179,14 @@ def archive_path() -> Path:
 
 def candidates_path() -> Path:
     return Path(current_app.config["JQCLI_CANDIDATES_PATH"])
+
+
+def archive_script_path() -> Path:
+    return Path(current_app.config["JQCLI_ARCHIVE_SCRIPT_PATH"])
+
+
+def valid_post_id(post_id: str) -> bool:
+    return bool(SAFE_ID_RE.fullmatch(post_id))
 
 
 def client_settings() -> dict[str, Any]:

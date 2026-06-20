@@ -5,7 +5,7 @@ import sys
 import click
 
 from jqcli.api.auth import login_with_password
-from jqcli.cli import AppContext
+from jqcli.cli import AppContext, validate_api_base_for_credentials
 from jqcli.config import resolve_login_credentials
 from jqcli.errors import UsageError
 from jqcli.output import write_json
@@ -84,6 +84,14 @@ def login(app: AppContext, username: str | None, password_stdin: bool) -> None:
         raise UsageError("缺少用户名，请传入 --username 或在 env 文件中设置 JQCLI_USERNAME")
     if not password:
         raise UsageError("缺少密码，请传入 --password-stdin 或在 env 文件中设置 JQCLI_PASSWORD")
+    validate_api_base_for_credentials(
+        app.api_base,
+        token=None,
+        cookie=None,
+        allow_custom_api_base=app.allow_custom_api_base,
+        credential_label="用户名/密码",
+        credential_present=True,
+    )
     result = login_with_password(app.api_base, username, password, timeout=app.timeout)
     app.config.data["username"] = username
     app.config.data["cookie"] = result["cookie"]

@@ -11,6 +11,18 @@ from jqcli.api.community import clone_strategy
 from jqcli.api.strategy import get_strategy, list_strategies
 from jqcli.web.db import connect, row_to_dict
 
+STRATEGY_ARCHIVE_COLUMNS = {
+    "post_id",
+    "source_backtest_id",
+    "status",
+    "updated_at",
+    "cloned_strategy_id",
+    "cloned_strategy_name",
+    "original_code_path",
+    "metadata_path",
+    "downloaded_at",
+}
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -82,10 +94,13 @@ def mark_archive(conn: Any, post_id: str, backtest_id: str, status: str, **field
         **fields,
     }
     columns = list(data)
+    invalid_columns = set(columns) - STRATEGY_ARCHIVE_COLUMNS
+    if invalid_columns:
+        raise ValueError(f"invalid strategy archive columns: {', '.join(sorted(invalid_columns))}")
     placeholders = ",".join("?" for _ in columns)
     assignments = ",".join(f"{column}=excluded.{column}" for column in columns if column != "post_id")
     conn.execute(
-        f"INSERT INTO strategy_archives({','.join(columns)}) VALUES({placeholders}) ON CONFLICT(post_id) DO UPDATE SET {assignments}",
+        f"INSERT INTO strategy_archives({','.join(columns)}) VALUES({placeholders}) ON CONFLICT(post_id) DO UPDATE SET {assignments}",  # nosec B608
         [data[column] for column in columns],
     )
     conn.commit()

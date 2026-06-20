@@ -19,12 +19,13 @@ def create_app(config: dict[str, Any] | None = None) -> Flask:
     data_dir = root / "local" / "data"
     manager_dir = data_dir / "strategy_manager"
     app.config.update(
-        SECRET_KEY="jqcli-local",
+        SECRET_KEY=secrets.token_urlsafe(24),
         JQCLI_ROOT=root,
         JQCLI_DATA_DIR=data_dir,
         JQCLI_MANAGER_DIR=manager_dir,
         JQCLI_DB_PATH=manager_dir / "manager.sqlite3",
         JQCLI_ARCHIVE_PATH=data_dir / "community_posts_archive.jsonl",
+        JQCLI_ARCHIVE_SCRIPT_PATH=Path(__file__).resolve().parents[2] / "scripts" / "archive_community_posts.py",
         JQCLI_CANDIDATES_PATH=data_dir / "original_strategy_candidates_period_gt_1y.csv",
         JQCLI_ENV_FILE=root / ".env",
         JQCLI_BACKTEST_START="2021-01-01",

@@ -10,6 +10,8 @@ from typing import Any, Callable
 
 from jqcli.web.db import connect, row_to_dict
 
+JOB_UPDATE_FIELDS = {"status", "message", "result_json", "error", "finished_at", "updated_at"}
+
 
 def now_text() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -34,10 +36,13 @@ def update_job(db_path: Path, job_id: str, **fields: Any) -> None:
     if not fields:
         return
     fields["updated_at"] = now_text()
+    invalid_fields = set(fields) - JOB_UPDATE_FIELDS
+    if invalid_fields:
+        raise ValueError(f"invalid job fields: {', '.join(sorted(invalid_fields))}")
     assignments = ", ".join(f"{key}=?" for key in fields)
     values = list(fields.values()) + [job_id]
     with connect(db_path) as conn:
-        conn.execute(f"UPDATE jobs SET {assignments} WHERE id = ?", values)
+        conn.execute(f"UPDATE jobs SET {assignments} WHERE id = ?", values)  # nosec B608
         conn.commit()
 
 

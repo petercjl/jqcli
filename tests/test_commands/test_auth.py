@@ -84,6 +84,66 @@ def test_login_reads_password_stdin(monkeypatch, tmp_path):
     assert json.loads(result.output)["ok"] is True
 
 
+def test_login_rejects_password_with_custom_api_base(monkeypatch, tmp_path):
+    def fake_login(api_base, username, password, timeout=30):
+        raise AssertionError("login should not be called")
+
+    monkeypatch.setattr("jqcli.commands.auth.login_with_password", fake_login)
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--config",
+            str(tmp_path / "c.json"),
+            "--api-base",
+            "https://evil.example",
+            "--format",
+            "json",
+            "auth",
+            "login",
+            "--username",
+            "u",
+            "--password-stdin",
+        ],
+        input="secret",
+    )
+
+    assert result.exit_code == 3
+    assert "用户名/密码" in json.loads(result.stderr)["error"]["message"]
+
+
+def test_login_allows_explicit_custom_api_base(monkeypatch, tmp_path):
+    seen = {}
+
+    def fake_login(api_base, username, password, timeout=30):
+        seen["api_base"] = api_base
+        return {"payload": {"code": "00000"}, "cookie": "sid=abc"}
+
+    monkeypatch.setattr("jqcli.commands.auth.login_with_password", fake_login)
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--config",
+            str(tmp_path / "c.json"),
+            "--api-base",
+            "https://proxy.example",
+            "--allow-custom-api-base",
+            "--format",
+            "json",
+            "auth",
+            "login",
+            "--username",
+            "u",
+            "--password-stdin",
+        ],
+        input="secret",
+    )
+
+    assert result.exit_code == 0
+    assert seen["api_base"] == "https://proxy.example"
+
+
 def test_login_reads_username_and_password_from_env_file(monkeypatch, tmp_path):
     def fake_login(api_base, username, password, timeout=30):
         return {"payload": {"code": "00000"}, "cookie": "sid=abc"}

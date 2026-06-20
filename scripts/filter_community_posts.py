@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 from pathlib import Path
 
 
-SRC = Path("/tmp/jqcli_community_latest_until_20250101.json")
-OUT_JSON = Path("/tmp/jqcli_community_clone_gt100_like_gt50.json")
-OUT_CSV = Path("/tmp/jqcli_community_clone_gt100_like_gt50.csv")
+TMP_DIR = Path(os.environ.get("TMPDIR", "."))
+SRC = TMP_DIR / "jqcli_community_latest_until_20250101.json"
+OUT_JSON = TMP_DIR / "jqcli_community_clone_gt100_like_gt50.json"
+OUT_CSV = TMP_DIR / "jqcli_community_clone_gt100_like_gt50.csv"
 
 
 def main() -> None:

@@ -114,7 +114,8 @@ def main() -> int:
 
     if list_out is None:
         raise SystemExit("--list-out is required for phase list/enrich/all")
-    assert enriched_out is not None
+    if enriched_out is None:
+        raise SystemExit("--enriched-out is required for phase list/enrich/all")
     state_path = args.state or list_out.with_suffix(list_out.suffix + ".state.json")
 
     if args.phase in {"all", "list"}:
@@ -543,7 +544,8 @@ def fetch_stats_with_retry(
                 time.sleep(retry_sleep)
         finally:
             client.close()
-    assert last_error is not None
+    if last_error is None:
+        raise RuntimeError("stats request failed without an exception")
     raise last_error
 
 

@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 from jqcli.web import create_app
-from jqcli.web.db import connect
+from jqcli.web.db import connect, init_db
+from jqcli.web.routes import valid_post_id
+from jqcli.web.services.archive_sync import refresh_archive
 from jqcli.web.services.code_standardizer import BEGIN, standardize_code
 from jqcli.web.services.posts import import_posts
 
@@ -116,6 +118,64 @@ def test_post_endpoints_require_write_token(tmp_path, monkeypatch):
     response = app.test_client().post("/api/posts/reindex")
 
     assert response.status_code == 403
+
+
+def test_invalid_post_id_is_rejected_before_file_paths(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    app = create_app(
+        {
+            "TESTING": True,
+            "JQCLI_DB_PATH": tmp_path / "manager.sqlite3",
+            "JQCLI_MANAGER_DIR": tmp_path / "strategy_manager",
+            "JQCLI_ARCHIVE_PATH": tmp_path / "missing.jsonl",
+            "JQCLI_CANDIDATES_PATH": tmp_path / "missing.csv",
+        }
+    )
+
+    response = app.test_client().post("/api/posts/%2E%2E/standardize", headers=write_headers(app))
+
+    assert response.status_code == 400
+    assert valid_post_id("p1_ABC-123") is True
+    assert valid_post_id("..") is False
+    assert valid_post_id("a/b") is False
+
+
+def test_refresh_archive_uses_explicit_script_path(tmp_path, monkeypatch):
+    db_path = tmp_path / "manager.sqlite3"
+    archive_path = tmp_path / "archive.jsonl"
+    candidates_path = tmp_path / "candidates.csv"
+    script_path = tmp_path / "trusted_archive.py"
+    script_path.write_text(
+        "from pathlib import Path\n"
+        "import argparse\n"
+        "parser=argparse.ArgumentParser()\n"
+        "parser.add_argument('--phase')\n"
+        "parser.add_argument('--store')\n"
+        "parser.add_argument('--state')\n"
+        "args=parser.parse_args()\n"
+        "Path(args.store).write_text('', encoding='utf-8')\n",
+        encoding="utf-8",
+    )
+    init_db(db_path)
+
+    payload = refresh_archive(db_path, tmp_path, archive_path, candidates_path, script_path=script_path)
+
+    assert payload["import"]["imported"] == 0
+
+
+def test_refresh_archive_rejects_missing_script(tmp_path):
+    try:
+        refresh_archive(
+            tmp_path / "manager.sqlite3",
+            tmp_path,
+            tmp_path / "archive.jsonl",
+            tmp_path / "candidates.csv",
+            script_path=tmp_path / "missing.py",
+        )
+    except RuntimeError as exc:
+        assert "archive script not found" in str(exc)
+    else:
+        raise AssertionError("missing script should fail")
 
 
 def test_posts_page_sets_page_flag_before_app_js(tmp_path, monkeypatch):
