@@ -25,6 +25,32 @@ def test_import_token_and_status(tmp_path):
     assert json.loads(status.output)["credential_source"] == "token"
 
 
+def test_import_cookie_from_stdin(tmp_path):
+    config = tmp_path / "config.json"
+    runner = CliRunner()
+
+    imported = runner.invoke(
+        main,
+        ["--config", str(config), "--format", "json", "auth", "import-cookie", "--cookie-stdin"],
+        input="sid=abc",
+    )
+    status = runner.invoke(main, ["--config", str(config), "--format", "json", "auth", "status"])
+
+    assert imported.exit_code == 0
+    assert json.loads(imported.output) == {"ok": True, "credential": "cookie"}
+    assert json.loads(status.output)["credential_source"] == "cookie"
+
+
+def test_import_token_requires_value(tmp_path):
+    result = CliRunner().invoke(
+        main,
+        ["--config", str(tmp_path / "config.json"), "--format", "json", "auth", "import-token"],
+    )
+
+    assert result.exit_code == 3
+    assert json.loads(result.stderr)["error"]["code"] == "usage_error"
+
+
 def test_logout_clears_config_credentials(tmp_path):
     config = tmp_path / "config.json"
     runner = CliRunner()

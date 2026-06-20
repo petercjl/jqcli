@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+JQCLI_REPO="${JQCLI_REPO:-/Users/pechen/AI/QuantTrading/jqcli}"
+JQCLI_BIN="${JQCLI_BIN:-$JQCLI_REPO/.venv/bin/jqcli}"
+
+ensure_jqcli() {
+  if [[ ! -x "$JQCLI_BIN" ]]; then
+    python3 -m venv "$JQCLI_REPO/.venv"
+    "$JQCLI_REPO/.venv/bin/python" -m pip install -q -e "$JQCLI_REPO"
+  fi
+}
+
+status() {
+  ensure_jqcli
+  "$JQCLI_BIN" --format json auth status
+}
+
+login_password() {
+  ensure_jqcli
+  local username password
+  read -r -p "JoinQuant username/email: " username
+  read -r -s -p "JoinQuant password: " password
+  printf '\n'
+  if [[ -z "$username" || -z "$password" ]]; then
+    printf 'username and password are required\n' >&2
+    exit 2
+  fi
+  printf '%s' "$password" | "$JQCLI_BIN" --format json auth login --username "$username" --password-stdin
+}
+
+cookie_help() {
+  cat <<'EOF'
+Manual Cookie import:
+
+1. Open Chrome and visit:
+   https://www.joinquant.com/algorithm/index/list
+2. Open DevTools: Option+Command+I
+3. Network tab -> reload the page
+4. Click a request to www.joinquant.com
+5. Headers -> Request Headers -> copy the full Cookie value
+6. Run:
+   jqcli-login cookie
+
+The helper will read the cookie from hidden stdin and import it into jqcli.
+EOF
+}
+
+import_cookie() {
+  ensure_jqcli
+  cookie_help
+  printf '\n'
+  read -r -s -p "Paste JoinQuant Cookie value: " cookie
+  printf '\n'
+  if [[ -z "$cookie" ]]; then
+    printf 'cookie is required\n' >&2
+    exit 2
+  fi
+  printf '%s' "$cookie" | "$JQCLI_BIN" --format json auth import-cookie --cookie-stdin
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  jqcli-login status      Show jqcli auth status
+  jqcli-login password    Login with username/password via hidden prompt
+  jqcli-login cookie      Import a manually copied JoinQuant Cookie
+  jqcli-login help-cookie Show manual Cookie copy steps
+
+This helper does not read Chrome cookie databases or browser storage.
+EOF
+}
+
+cmd="${1:-status}"
+case "$cmd" in
+  status) status ;;
+  password) login_password ;;
+  cookie) import_cookie ;;
+  help-cookie) cookie_help ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

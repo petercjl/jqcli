@@ -48,10 +48,16 @@ def logout(app: AppContext) -> None:
 
 
 @auth_group.command("import-token")
-@click.option("--token", required=True, help="要保存的 token")
+@click.option("--token", help="要保存的 token")
+@click.option("--token-stdin", is_flag=True, help="从 stdin 读取 token，避免出现在进程参数中")
 @click.pass_obj
-def import_token(app: AppContext, token: str) -> None:
-    app.config.data["token"] = token
+def import_token(app: AppContext, token: str | None, token_stdin: bool) -> None:
+    if token and token_stdin:
+        raise UsageError("--token 与 --token-stdin 不可同时使用")
+    token_value = sys.stdin.read().strip() if token_stdin else token
+    if not token_value:
+        raise UsageError("缺少 token，请传入 --token 或 --token-stdin")
+    app.config.data["token"] = token_value
     app.config.data.pop("cookie", None)
     app.config.save()
     if app.json_output:
@@ -61,10 +67,16 @@ def import_token(app: AppContext, token: str) -> None:
 
 
 @auth_group.command("import-cookie")
-@click.option("--cookie", required=True, help="要保存的 cookie")
+@click.option("--cookie", help="要保存的 cookie")
+@click.option("--cookie-stdin", is_flag=True, help="从 stdin 读取 cookie，避免出现在进程参数中")
 @click.pass_obj
-def import_cookie(app: AppContext, cookie: str) -> None:
-    app.config.data["cookie"] = cookie
+def import_cookie(app: AppContext, cookie: str | None, cookie_stdin: bool) -> None:
+    if cookie and cookie_stdin:
+        raise UsageError("--cookie 与 --cookie-stdin 不可同时使用")
+    cookie_value = sys.stdin.read().strip() if cookie_stdin else cookie
+    if not cookie_value:
+        raise UsageError("缺少 cookie，请传入 --cookie 或 --cookie-stdin")
+    app.config.data["cookie"] = cookie_value
     app.config.data.pop("token", None)
     app.config.save()
     if app.json_output:
