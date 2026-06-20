@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+import secrets
 from typing import Any
 
-from flask import Flask
+from flask import Flask, jsonify, request
 
 from jqcli.config import load_config, load_env_file, resolve_credentials
 
@@ -30,6 +31,7 @@ def create_app(config: dict[str, Any] | None = None) -> Flask:
         JQCLI_BACKTEST_END="2025-12-12",
         JQCLI_BACKTEST_CAPITAL=500000,
         JQCLI_BACKTEST_FREQUENCY="day",
+        JQCLI_WEB_WRITE_TOKEN=secrets.token_urlsafe(24),
     )
     if config:
         app.config.update(config)
@@ -60,4 +62,15 @@ def create_app(config: dict[str, Any] | None = None) -> Flask:
                 fill_missing_logical_keys(conn)
                 mark_duplicate_posts(conn)
     app.register_blueprint(bp)
+
+    @app.before_request
+    def require_write_token():
+        if request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+            return None
+        expected = str(app.config.get("JQCLI_WEB_WRITE_TOKEN") or "")
+        provided = request.headers.get("X-JQCLI-Web-Token", "")
+        if expected and provided == expected:
+            return None
+        return jsonify({"error": "missing or invalid write token"}), 403
+
     return app

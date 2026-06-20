@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 from jqcli.config import Config, default_config_path, load_config, load_env_file, parse_env_line, resolve_credentials
@@ -22,6 +23,8 @@ def test_config_save_creates_parent(tmp_path):
     config.save()
 
     assert json.loads(path.read_text(encoding="utf-8")) == {"token": "abc"}
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o600
 
 
 def test_resolve_credentials_env_first(monkeypatch, tmp_path):

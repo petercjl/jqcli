@@ -34,6 +34,15 @@ def default_env_path() -> Path:
     return Path.cwd() / ".env"
 
 
+def secure_file_permissions(path: Path) -> None:
+    if sys.platform.startswith("win"):
+        return
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        return
+
+
 def parse_env_line(line: str) -> tuple[str, str] | None:
     stripped = line.strip()
     if not stripped or stripped.startswith("#"):
@@ -102,6 +111,7 @@ class Config:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            secure_file_permissions(self.path)
         except OSError as exc:
             raise FileError(f"无法写入配置文件 {self.path}") from exc
 
@@ -119,6 +129,8 @@ def load_config(path: str | Path | None = None) -> Config:
         raise FileError(f"无法读取配置文件 {read_path}") from exc
     if not isinstance(data, dict):
         raise FileError(f"配置文件 {read_path} 格式错误")
+    if data.get("token") or data.get("cookie") or data.get("username"):
+        secure_file_permissions(read_path)
     return Config(path=config_path, data=data)
 
 

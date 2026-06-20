@@ -9,7 +9,16 @@ function toast(message) {
 }
 
 async function api(url, options) {
-  const response = await fetch(url, options);
+  const requestOptions = { ...(options || {}) };
+  const method = (requestOptions.method || "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const token = document.querySelector('meta[name="jqcli-web-write-token"]')?.content || "";
+    requestOptions.headers = {
+      ...(requestOptions.headers || {}),
+      "X-JQCLI-Web-Token": token,
+    };
+  }
+  const response = await fetch(url, requestOptions);
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || response.statusText);
   return data;

@@ -33,6 +33,12 @@ JQCLI_COOKIE=your_cookie
 
 `.env` 已加入 `.gitignore`，不要提交真实账号、密码、cookie 或 token。
 
+安全默认值：
+
+- 保存到本地配置文件的 cookie/token 会在 macOS/Linux 上自动收紧为 `0600` 权限。
+- 当已配置 token/cookie 时，默认拒绝把凭据发送到非聚宽域名的 `--api-base`。如果你明确在使用本地代理或测试环境，需要显式传入 `--allow-custom-api-base`，或设置 `JQCLI_ALLOW_CUSTOM_API_BASE=1`。
+- `web run` 默认只监听本机地址；不要把本地 Web 管理界面暴露到公网。
+
 凭据优先级：
 
 1. 命令行 `--token` / `--cookie`
@@ -54,6 +60,7 @@ jqcli [--config <path>]
       [--env-file <path>]
       [--api-base <url>]
       [--token <token> | --cookie <cookie>]
+      [--allow-custom-api-base]
       [--format table|json]
       [--non-interactive]
       [--quiet]

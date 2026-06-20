@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
+from urllib.parse import urlparse
 
 import click
 
 from . import __version__
 from .config import Config, load_config, load_env_file, resolve_credentials
-from .errors import JqcliError
+from .errors import JqcliError, UsageError
 from .output import write_error
 
 
@@ -43,6 +45,7 @@ class JqcliGroup(click.Group):
 @click.option("--api-base", type=str, help="覆盖 API 地址")
 @click.option("--token", type=str, help="本次命令使用的 token")
 @click.option("--cookie", type=str, help="本次命令使用的 cookie")
+@click.option("--allow-custom-api-base", is_flag=True, help="允许把凭据发送到非聚宽 API 地址")
 @click.option("--format", "output_format", type=click.Choice(["table", "json"]), default=None, help="输出格式")
 @click.option("--non-interactive", is_flag=True, help="禁止交互式输入和确认")
 @click.option("--quiet", is_flag=True, help="减少成功输出")
@@ -57,6 +60,7 @@ def main(
     api_base: str | None,
     token: str | None,
     cookie: str | None,
+    allow_custom_api_base: bool,
     output_format: str | None,
     non_interactive: bool,
     quiet: bool,
@@ -67,9 +71,16 @@ def main(
     load_env_file(env_file)
     config = load_config(config_path)
     resolved_token, resolved_cookie = resolve_credentials(config, token=token, cookie=cookie)
+    resolved_api_base = api_base or config.api_base
+    validate_api_base_for_credentials(
+        resolved_api_base,
+        token=resolved_token,
+        cookie=resolved_cookie,
+        allow_custom_api_base=allow_custom_api_base,
+    )
     ctx.obj = AppContext(
         config=config,
-        api_base=api_base or config.api_base,
+        api_base=resolved_api_base,
         token=resolved_token,
         cookie=resolved_cookie,
         output_format=output_format or str(config.data.get("default_format") or "table"),
@@ -77,6 +88,27 @@ def main(
         quiet=quiet,
         debug=debug,
         timeout=timeout if timeout is not None else config.timeout,
+    )
+
+
+def validate_api_base_for_credentials(
+    api_base: str,
+    *,
+    token: str | None,
+    cookie: str | None,
+    allow_custom_api_base: bool = False,
+) -> None:
+    if not (token or cookie):
+        return
+    if allow_custom_api_base or os.environ.get("JQCLI_ALLOW_CUSTOM_API_BASE") == "1":
+        return
+    host = (urlparse(api_base).hostname or "").lower()
+    if host in {"joinquant.com", "www.joinquant.com", "localhost", "127.0.0.1", "::1"}:
+        return
+    if host.endswith(".joinquant.com"):
+        return
+    raise UsageError(
+        "拒绝把 token/cookie 发送到非聚宽 API 地址；如确认为本地代理或测试环境，请显式传入 --allow-custom-api-base"
     )
 
 

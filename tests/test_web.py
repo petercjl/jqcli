@@ -9,6 +9,10 @@ from jqcli.web.services.code_standardizer import BEGIN, standardize_code
 from jqcli.web.services.posts import import_posts
 
 
+def write_headers(app):
+    return {"X-JQCLI-Web-Token": app.config["JQCLI_WEB_WRITE_TOKEN"]}
+
+
 def write_archive(path: Path) -> None:
     raw = {
         "id": "p1",
@@ -91,10 +95,27 @@ def test_standardize_endpoint_uses_local_archive(tmp_path, monkeypatch):
             (str(original),),
         )
         conn.commit()
-    response = app.test_client().post("/api/posts/p1/standardize")
+    response = app.test_client().post("/api/posts/p1/standardize", headers=write_headers(app))
     assert response.status_code == 200
     target = Path(response.get_json()["standardized_code_path"])
     assert BEGIN in target.read_text(encoding="utf-8")
+
+
+def test_post_endpoints_require_write_token(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    app = create_app(
+        {
+            "TESTING": True,
+            "JQCLI_DB_PATH": tmp_path / "manager.sqlite3",
+            "JQCLI_MANAGER_DIR": tmp_path / "strategy_manager",
+            "JQCLI_ARCHIVE_PATH": tmp_path / "missing.jsonl",
+            "JQCLI_CANDIDATES_PATH": tmp_path / "missing.csv",
+        }
+    )
+
+    response = app.test_client().post("/api/posts/reindex")
+
+    assert response.status_code == 403
 
 
 def test_posts_page_sets_page_flag_before_app_js(tmp_path, monkeypatch):
