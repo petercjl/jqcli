@@ -74,3 +74,29 @@ Backtests:
 .\.venv\Scripts\jqcli.exe --format json --non-interactive backtest result <backtest_id>
 .\.venv\Scripts\jqcli.exe --format json --non-interactive backtest logs <backtest_id> --offset 0
 ```
+
+Backtest web export files:
+
+Use this when the user asks for the four downloadable files from the JoinQuant backtest detail page's `导出` menu. Do not substitute `backtest result` or `backtest logs`; those are lower-level JSON/log endpoints and are not the same as the web UI export artifacts.
+
+```powershell
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --kind all --output-dir <output_dir>
+```
+
+Single-file variants:
+
+```powershell
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --kind result --output-dir <output_dir>
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --kind transaction --output-dir <output_dir>
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --kind position --output-dir <output_dir>
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --kind log --output-dir <output_dir>
+```
+
+Artifact mapping:
+
+- `result`: downloads `result_*.csv`, matching `收益概述`.
+- `transaction`: downloads `transaction.zip`, containing `transaction.csv`, matching `交易详情`.
+- `position`: downloads `position.zip`, containing `position.csv`, matching `持仓&收益`.
+- `log`: downloads `log.zip`, containing `log.txt`, matching `日志`.
+
+Implementation note for maintainers: `result` uses `/algorithm/backtest/export`; the other three use `/algorithm/backtest/addExportZip`, poll `/algorithm/backtest/getExportStatus`, then download `/algorithm/backtest/getExportZip`.

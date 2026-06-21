@@ -45,7 +45,9 @@ Do not move `local/` contents back to the repo root. When adding new generated o
 
 ## Common Workflows
 
-Read `references/api-workflows.md` when the user asks to run jqcli commands, test APIs, validate live JoinQuant compatibility, or perform read/write smoke checks.
+Read `references/api-workflows.md` when the user asks to run jqcli commands, test APIs, validate live JoinQuant compatibility, download JoinQuant backtest export files, or perform read/write smoke checks.
+
+When the user wants the four files from the JoinQuant backtest detail page's `导出` menu, use `backtest export`, not the lower-level `backtest result` or `backtest logs` commands. The export command downloads the same four artifacts as the web UI: result CSV, transaction ZIP, position ZIP, and log ZIP.
 
 Read `references/troubleshooting.md` when a command fails, authentication behaves oddly, tests fail, or live API responses look like login redirects or "system busy" responses.
 

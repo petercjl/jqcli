@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from datetime import date
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import click
@@ -10,6 +11,7 @@ from rich.table import Table
 
 from jqcli.api.backtest import (
     delete_backtest_record,
+    export_backtest_data,
     get_backtest,
     get_backtest_logs,
     get_backtest_result,
@@ -27,7 +29,7 @@ if TYPE_CHECKING:
 
 
 TERMINAL_STATUSES = {"done", "failed", "cancelled"}
-RESULT_STATE_STATUSES = {"0": "running", "1": "failed", "2": "done", "3": "cancelled"}
+RESULT_STATE_STATUSES = {"0": "running", "1": "running", "2": "done", "3": "cancelled"}
 
 
 @click.group(name="backtest")
@@ -87,9 +89,13 @@ def find_backtest_list_item(
     *,
     strategy_id: str | None,
     compile_only: bool,
+    list_id: str | None = None,
 ) -> dict[str, Any] | None:
     if not strategy_id:
         return None
+    candidate_ids = {str(backtest_id)}
+    if list_id:
+        candidate_ids.add(str(list_id))
     payload = list_backtests(
         client,
         strategy_id=strategy_id,
@@ -97,7 +103,8 @@ def find_backtest_list_item(
         compile_only=compile_only,
     )
     for item in payload.get("items", []):
-        if backtest_id in {str(item.get("id", "")), str(item.get("list_id", "")), str(item.get("source_id", ""))}:
+        item_ids = {str(item.get("id", "")), str(item.get("list_id", "")), str(item.get("source_id", ""))}
+        if candidate_ids & item_ids:
             return item
     return None
 
@@ -139,6 +146,7 @@ def wait_for_backtest(
     poll_interval: float,
     strategy_id: str | None = None,
     compile_only: bool = False,
+    list_id: str | None = None,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     last_payload: dict[str, Any] | None = None
@@ -161,6 +169,7 @@ def wait_for_backtest(
             backtest_id,
             strategy_id=strategy_id,
             compile_only=compile_only,
+            list_id=list_id,
         )
         if list_item:
             list_status = str(list_item.get("status", ""))
@@ -249,6 +258,7 @@ def run(
                 poll_interval=poll_interval,
                 strategy_id=strategy_id,
                 compile_only=compile_only,
+                list_id=str(payload.get("list_id") or ""),
             )
     finally:
         close_client(client)
@@ -349,6 +359,67 @@ def result(app: AppContext, backtest_id: str, offset: int, user_record_offset: i
         click.echo(f"回测 ID: {payload.get('id', '')}")
         click.echo(f"状态: {state}")
         click.echo(f"数据点: {count}")
+
+
+@backtest_group.command("export")
+@click.argument("backtest_id")
+@click.option("--kind", type=click.Choice(["result", "transaction", "position", "log", "all"]), default="all", show_default=True)
+@click.option("--output-dir", type=click.Path(file_okay=False, path_type=Path), default=Path("."), show_default=True)
+@click.option("--poll-interval", type=float, default=2, show_default=True)
+@click.option("--timeout", type=float, default=120, show_default=True)
+@click.option("--use-credit", is_flag=True, help="允许导出任务消耗积分")
+@click.pass_obj
+def export(
+    app: AppContext,
+    backtest_id: str,
+    kind: str,
+    output_dir: Path,
+    poll_interval: float,
+    timeout: float,
+    use_credit: bool,
+) -> None:
+    kinds = ["result", "transaction", "position", "log"] if kind == "all" else [kind]
+    output_dir.mkdir(parents=True, exist_ok=True)
+    client = make_client(app)
+    outputs: list[dict[str, Any]] = []
+    try:
+        for item in kinds:
+            payload = export_backtest_data(
+                client,
+                backtest_id,
+                kind=item,
+                poll_interval=poll_interval,
+                timeout=timeout,
+                use_credit=use_credit,
+            )
+            filename = str(payload.get("filename") or f"{item}.bin")
+            path = output_dir / filename
+            suffix = 1
+            while path.exists():
+                path = output_dir / f"{path.stem}-{suffix}{path.suffix}"
+                suffix += 1
+            content = payload.get("content", b"")
+            path.write_bytes(content)
+            outputs.append(
+                {
+                    "kind": item,
+                    "id": payload.get("id"),
+                    "resolved_id": payload.get("resolved_id"),
+                    "task": payload.get("task"),
+                    "filename": filename,
+                    "path": str(path),
+                    "size": len(content),
+                    "content_type": payload.get("content_type", ""),
+                }
+            )
+    finally:
+        close_client(client)
+    result_payload = {"id": backtest_id, "output_dir": str(output_dir), "files": outputs}
+    if app.json_output:
+        write_json(result_payload)
+    elif not app.quiet:
+        for item in outputs:
+            click.echo(f"{item['kind']}: {item['path']} ({item['size']} bytes)")
 
 
 @backtest_group.command("logs")

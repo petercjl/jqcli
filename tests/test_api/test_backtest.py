@@ -6,6 +6,7 @@ import pytest
 from jqcli.api.backtest import (
     delete_backtest,
     delete_backtest_record,
+    export_backtest_data,
     get_backtest,
     get_backtest_logs,
     get_backtest_result,
@@ -57,6 +58,15 @@ BACKTEST_DETAIL_HTML = """
 <input type="hidden" name="backtest[backtestId]" id="backtestId" value="source-id">
 <input type="text" name="startTime" id="startTime" value="2019-01-01">
 """
+
+BACKTEST_DETAIL_JSON = {
+    "data": {
+        "backtest": {
+            "backtestId": "hex-id",
+        }
+    },
+    "code": "00000",
+}
 
 
 def test_parse_backtest_list_html():
@@ -277,6 +287,69 @@ def test_get_backtest_error_logs():
 
     assert payload["kind"] == "error"
     assert payload["logs"] == ["Traceback"]
+
+
+def test_export_backtest_result_downloads_csv():
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, dict(request.url.params)))
+        if request.url.path == "/algorithm/backtest/detail":
+            return httpx.Response(200, json=BACKTEST_DETAIL_JSON)
+        if request.url.path == "/algorithm/backtest/export":
+            assert request.url.params["backtestId"] == "hex-id"
+            assert request.url.params["type"] == "result"
+            return httpx.Response(
+                200,
+                content=b"a,b\n1,2\n",
+                headers={"content-disposition": "attachment; filename=result_1.csv", "content-type": "text/csv"},
+            )
+        raise AssertionError(request.url.path)
+
+    payload = export_backtest_data(client_with(handler), "numeric-id", kind="result")
+
+    assert payload["resolved_id"] == "hex-id"
+    assert payload["filename"] == "result_1.csv"
+    assert payload["content"] == b"a,b\n1,2\n"
+    assert [item[0] for item in seen] == ["/algorithm/backtest/detail", "/algorithm/backtest/export"]
+
+
+def test_export_backtest_zip_waits_for_task(monkeypatch):
+    seen = []
+    statuses = iter([{"code": "00000", "data": False}, {"code": "00000", "data": "1"}])
+
+    def handler(request):
+        seen.append((request.url.path, dict(request.url.params)))
+        if request.url.path == "/algorithm/backtest/detail":
+            return httpx.Response(200, json=BACKTEST_DETAIL_JSON)
+        if request.url.path == "/algorithm/backtest/addExportZip":
+            assert request.url.params["backtestId"] == "hex-id"
+            assert request.url.params["type"] == "transaction"
+            return httpx.Response(200, json={"code": "00000", "data": "task-1"})
+        if request.url.path == "/algorithm/backtest/getExportStatus":
+            return httpx.Response(200, json=next(statuses))
+        if request.url.path == "/algorithm/backtest/getExportZip":
+            return httpx.Response(
+                200,
+                content=b"PKzip",
+                headers={"content-disposition": "attachment; filename=transaction.zip"},
+            )
+        raise AssertionError(request.url.path)
+
+    monkeypatch.setattr("jqcli.api.backtest.time.sleep", lambda seconds: None)
+
+    payload = export_backtest_data(client_with(handler), "numeric-id", kind="transaction", poll_interval=0)
+
+    assert payload["task"] == "task-1"
+    assert payload["filename"] == "transaction.zip"
+    assert payload["content"] == b"PKzip"
+    assert [item[0] for item in seen] == [
+        "/algorithm/backtest/detail",
+        "/algorithm/backtest/addExportZip",
+        "/algorithm/backtest/getExportStatus",
+        "/algorithm/backtest/getExportStatus",
+        "/algorithm/backtest/getExportZip",
+    ]
 
 
 def test_delete_backtest():

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import base64
+import json
 import re
+import time
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any
@@ -16,6 +18,7 @@ BUILD_ERROR_MESSAGES = {
     "50000": "免费回测时间不足；如确认消耗积分继续运行，请传入 --use-credit。",
     "50001": "积分不足，无法继续运行回测。",
 }
+EXPORT_KINDS = {"result", "transaction", "position", "log"}
 
 
 class _BacktestListParser(HTMLParser):
@@ -188,6 +191,99 @@ def _parse_backtest_detail(client: ApiClient, backtest_id: str) -> _InputParser:
     parser = _InputParser()
     parser.feed(html)
     return parser
+
+
+def _parse_filename(content_disposition: str | None, default: str) -> str:
+    if not content_disposition:
+        return default
+    match = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?', content_disposition)
+    if not match:
+        return default
+    filename = unescape(match.group(1)).strip()
+    return filename or default
+
+
+def resolve_backtest_export_id(client: ApiClient, backtest_id: str) -> str:
+    text = client.get_text("/algorithm/backtest/detail", params={"backtestId": backtest_id})
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        parser = _InputParser()
+        parser.feed(text)
+        return parser.ids.get("backtestId", backtest_id)
+    data = payload.get("data") if isinstance(payload, dict) else None
+    backtest = data.get("backtest") if isinstance(data, dict) else None
+    resolved = backtest.get("backtestId") if isinstance(backtest, dict) else None
+    return str(resolved or backtest_id)
+
+
+def _export_response(client: ApiClient, path: str, *, params: dict[str, Any]) -> Any:
+    return client._send("GET", path, params=params)  # noqa: SLF001 - binary downloads need response headers.
+
+
+def export_backtest_data(
+    client: ApiClient,
+    backtest_id: str,
+    *,
+    kind: str,
+    poll_interval: float = 2,
+    timeout: float = 120,
+    use_credit: bool = False,
+) -> dict[str, Any]:
+    if kind not in EXPORT_KINDS:
+        raise ApiError(f"不支持的导出类型：{kind}")
+    resolved_id = resolve_backtest_export_id(client, backtest_id)
+    if kind == "result":
+        response = _export_response(
+            client,
+            "/algorithm/backtest/export",
+            params={"backtestId": resolved_id, "type": "result"},
+        )
+        return {
+            "id": backtest_id,
+            "resolved_id": resolved_id,
+            "kind": kind,
+            "filename": _parse_filename(response.headers.get("content-disposition"), "result.csv"),
+            "content_type": response.headers.get("content-type", ""),
+            "content": response.content,
+        }
+
+    task_payload = client.get(
+        "/algorithm/backtest/addExportZip",
+        params={
+            "backtestId": resolved_id,
+            "type": kind,
+            "useCredit": 1 if use_credit else 0,
+        },
+    )
+    if not isinstance(task_payload, dict) or task_payload.get("code") != "00000" or not task_payload.get("data"):
+        message = str(task_payload.get("msg", "")) if isinstance(task_payload, dict) else str(task_payload)
+        raise ApiError(f"创建导出任务失败：{message or task_payload}", details={"response": task_payload})
+    task = str(task_payload["data"])
+    deadline = time.monotonic() + timeout
+    last_status: Any = None
+    while True:
+        status_payload = client.get("/algorithm/backtest/getExportStatus", params={"task": task})
+        if not isinstance(status_payload, dict) or status_payload.get("code") != "00000":
+            message = str(status_payload.get("msg", "")) if isinstance(status_payload, dict) else str(status_payload)
+            raise ApiError(f"查询导出任务失败：{message or status_payload}", details={"response": status_payload})
+        last_status = status_payload.get("data")
+        if str(last_status) == "1":
+            response = _export_response(client, "/algorithm/backtest/getExportZip", params={"task": task})
+            return {
+                "id": backtest_id,
+                "resolved_id": resolved_id,
+                "kind": kind,
+                "task": task,
+                "filename": _parse_filename(response.headers.get("content-disposition"), f"{kind}.zip"),
+                "content_type": response.headers.get("content-type", ""),
+                "content": response.content,
+            }
+        if str(last_status) == "2":
+            raise ApiError("导出任务没有可下载数据", details={"task": task, "status": last_status})
+        if time.monotonic() >= deadline:
+            raise ApiError("等待导出任务超时", details={"task": task, "status": last_status})
+        time.sleep(poll_interval)
 
 
 def run_backtest(
