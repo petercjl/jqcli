@@ -49,6 +49,8 @@ Read `references/api-workflows.md` when the user asks to run jqcli commands, tes
 
 When the user wants the four files from the JoinQuant backtest detail page's `导出` menu, use `backtest export`, not the lower-level `backtest result` or `backtest logs` commands. The export command downloads the same four artifacts as the web UI: result CSV, transaction ZIP, position ZIP, and log ZIP.
 
+For analysis workflows, prefer `backtest export --mode all` so the command downloads the four web artifacts and immediately preprocesses them into normalized UTF-8 CSV/JSONL files. Use `--mode preprocess` to clean an already-downloaded export directory without logging in or downloading again.
+
 Read `references/troubleshooting.md` when a command fails, authentication behaves oddly, tests fail, or live API responses look like login redirects or "system busy" responses.
 
 Use helper scripts when available:

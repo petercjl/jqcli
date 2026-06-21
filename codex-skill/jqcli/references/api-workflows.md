@@ -83,6 +83,18 @@ Use this when the user asks for the four downloadable files from the JoinQuant b
 .\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --kind all --output-dir <output_dir>
 ```
 
+For strategy analysis, download and preprocess in one step:
+
+```powershell
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --kind all --mode all --output-dir <output_dir>
+```
+
+To preprocess a directory that already contains the four downloaded artifacts:
+
+```powershell
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest export <backtest_id> --mode preprocess --output-dir <output_dir>
+```
+
 Single-file variants:
 
 ```powershell
@@ -98,5 +110,14 @@ Artifact mapping:
 - `transaction`: downloads `transaction.zip`, containing `transaction.csv`, matching `交易详情`.
 - `position`: downloads `position.zip`, containing `position.csv`, matching `持仓&收益`.
 - `log`: downloads `log.zip`, containing `log.txt`, matching `日志`.
+
+Preprocess outputs under `<output_dir>/clean` by default:
+
+- `result.normalized.csv`: UTF-8 cumulative and daily return fields.
+- `transactions.normalized.csv`: parsed security code/name, side, amounts, prices, fees, status, and cancellation flag.
+- `positions.normalized.csv`: parsed position rows with fixed headers, portfolio value, and weight fields.
+- `logs.audit.jsonl`: parsed `JQ_AUDIT|` events as JSONL.
+- `logs.human.txt`: extracted `HUMAN|` lines.
+- `diagnostics.json`: rows, turnover, fees, cancellations, position concentration, and log event counts.
 
 Implementation note for maintainers: `result` uses `/algorithm/backtest/export`; the other three use `/algorithm/backtest/addExportZip`, poll `/algorithm/backtest/getExportStatus`, then download `/algorithm/backtest/getExportZip`.

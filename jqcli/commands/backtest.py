@@ -20,6 +20,7 @@ from jqcli.api.backtest import (
     run_backtest,
 )
 from jqcli.api.client import ApiClient
+from jqcli.backtest_preprocess import preprocess_backtest_exports
 from jqcli.errors import ConfirmationRequiredError, NotAuthenticatedError, TimeoutError
 from jqcli.output import write_json
 
@@ -365,6 +366,14 @@ def result(app: AppContext, backtest_id: str, offset: int, user_record_offset: i
 @click.argument("backtest_id")
 @click.option("--kind", type=click.Choice(["result", "transaction", "position", "log", "all"]), default="all", show_default=True)
 @click.option("--output-dir", type=click.Path(file_okay=False, path_type=Path), default=Path("."), show_default=True)
+@click.option("--clean-dir", type=click.Path(file_okay=False, path_type=Path), default=None, help="预处理输出目录，默认是 <output-dir>/clean")
+@click.option(
+    "--mode",
+    type=click.Choice(["download", "preprocess", "all"]),
+    default="download",
+    show_default=True,
+    help="download 只下载，preprocess 只处理已有文件，all 下载后立即处理",
+)
 @click.option("--poll-interval", type=float, default=2, show_default=True)
 @click.option("--timeout", type=float, default=120, show_default=True)
 @click.option("--use-credit", is_flag=True, help="允许导出任务消耗积分")
@@ -374,52 +383,67 @@ def export(
     backtest_id: str,
     kind: str,
     output_dir: Path,
+    clean_dir: Path | None,
+    mode: str,
     poll_interval: float,
     timeout: float,
     use_credit: bool,
 ) -> None:
     kinds = ["result", "transaction", "position", "log"] if kind == "all" else [kind]
     output_dir.mkdir(parents=True, exist_ok=True)
-    client = make_client(app)
     outputs: list[dict[str, Any]] = []
-    try:
-        for item in kinds:
-            payload = export_backtest_data(
-                client,
-                backtest_id,
-                kind=item,
-                poll_interval=poll_interval,
-                timeout=timeout,
-                use_credit=use_credit,
-            )
-            filename = str(payload.get("filename") or f"{item}.bin")
-            path = output_dir / filename
-            suffix = 1
-            while path.exists():
-                path = output_dir / f"{path.stem}-{suffix}{path.suffix}"
-                suffix += 1
-            content = payload.get("content", b"")
-            path.write_bytes(content)
-            outputs.append(
-                {
-                    "kind": item,
-                    "id": payload.get("id"),
-                    "resolved_id": payload.get("resolved_id"),
-                    "task": payload.get("task"),
-                    "filename": filename,
-                    "path": str(path),
-                    "size": len(content),
-                    "content_type": payload.get("content_type", ""),
-                }
-            )
-    finally:
-        close_client(client)
-    result_payload = {"id": backtest_id, "output_dir": str(output_dir), "files": outputs}
+    if mode in {"download", "all"}:
+        client = make_client(app)
+        try:
+            for item in kinds:
+                payload = export_backtest_data(
+                    client,
+                    backtest_id,
+                    kind=item,
+                    poll_interval=poll_interval,
+                    timeout=timeout,
+                    use_credit=use_credit,
+                )
+                filename = str(payload.get("filename") or f"{item}.bin")
+                path = output_dir / filename
+                suffix = 1
+                while path.exists():
+                    path = output_dir / f"{path.stem}-{suffix}{path.suffix}"
+                    suffix += 1
+                content = payload.get("content", b"")
+                path.write_bytes(content)
+                outputs.append(
+                    {
+                        "kind": item,
+                        "id": payload.get("id"),
+                        "resolved_id": payload.get("resolved_id"),
+                        "task": payload.get("task"),
+                        "filename": filename,
+                        "path": str(path),
+                        "size": len(content),
+                        "content_type": payload.get("content_type", ""),
+                    }
+                )
+        finally:
+            close_client(client)
+    clean_payload: dict[str, Any] | None = None
+    if mode in {"preprocess", "all"}:
+        target_clean_dir = clean_dir if clean_dir is not None else output_dir / "clean"
+        clean_payload = preprocess_backtest_exports(output_dir, target_clean_dir, backtest_id=backtest_id)
+    result_payload = {
+        "id": backtest_id,
+        "mode": mode,
+        "output_dir": str(output_dir),
+        "files": outputs,
+        "preprocess": clean_payload,
+    }
     if app.json_output:
         write_json(result_payload)
     elif not app.quiet:
         for item in outputs:
             click.echo(f"{item['kind']}: {item['path']} ({item['size']} bytes)")
+        if clean_payload:
+            click.echo(f"preprocess: {clean_payload['output_dir']}")
 
 
 @backtest_group.command("logs")

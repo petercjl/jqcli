@@ -1,4 +1,5 @@
 import json
+import zipfile
 
 from click.testing import CliRunner
 
@@ -324,6 +325,133 @@ def test_backtest_export_writes_file(monkeypatch, tmp_path):
     assert payload["files"][0]["kind"] == "result"
     assert payload["files"][0]["size"] == 8
     assert (output_dir / "result_1.csv").read_bytes() == b"a,b\n1,2\n"
+
+
+def test_backtest_export_preprocess_existing_files(tmp_path):
+    output_dir = tmp_path / "exports"
+    output_dir.mkdir()
+    (output_dir / "result_1.csv").write_text(
+        "时间,基准收益,策略收益,当日盈利,当日亏损,当日买入,当日卖出,超额收益(%)\n"
+        "2023-01-03 16:00:00,0.88,0,0,0,0,0,-0.87\n",
+        encoding="gbk",
+    )
+    with zipfile.ZipFile(output_dir / "transaction.zip", "w") as archive:
+        archive.writestr(
+            "transaction.csv",
+            (
+                "日期,委托时间,品种,标的,交易类型,下单类型,成交数量,成交价,成交额,委托数量,委托价格,平仓盈亏,手续费,状态,最后更新时间\n"
+                "2023-01-04,09:35:00,股票,测试股(000001.XSHG),买,市价单,100股,10,1000,100股,-,0,5,全部成交,2023-01-04 09:35:00\n"
+            ).encode("gbk"),
+        )
+    with zipfile.ZipFile(output_dir / "position.zip", "w") as archive:
+        archive.writestr(
+            "position.csv",
+            (
+                "日期,品种,标的,多空,数量,可用数量,收盘价/结算价,市值/价值,盈亏/逐笔浮盈,开仓均价,持仓均价（期货）,保证金,当日盈亏,今手数,盈亏占比,仓位占比\n"
+                "2023-01-04,股票,测试股(000001.XSHG),多,100股,0股,10,1000,0,10,-,0,0,100股,0%,10000,10%\n"
+            ).encode("gbk"),
+        )
+    with zipfile.ZipFile(output_dir / "log.zip", "w") as archive:
+        archive.writestr(
+            "log.txt",
+            'INFO HUMAN|hello\nINFO JQ_AUDIT|{"event":"x","value":1}\n'.encode("utf-8"),
+        )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--config",
+            str(tmp_path / "c.json"),
+            "--format",
+            "json",
+            "backtest",
+            "export",
+            "bt1",
+            "--mode",
+            "preprocess",
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert payload["mode"] == "preprocess"
+    clean_dir = output_dir / "clean"
+    assert (clean_dir / "transactions.normalized.csv").exists()
+    assert (clean_dir / "positions.normalized.csv").exists()
+    assert (clean_dir / "logs.audit.jsonl").read_text(encoding="utf-8").strip() == '{"event": "x", "value": 1}'
+    diagnostics = json.loads((clean_dir / "diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostics["transactions"]["gross_turnover"] == 1000
+    assert diagnostics["positions"]["max_single_weight_pct"] == 10
+
+
+def test_backtest_export_all_downloads_and_preprocesses(monkeypatch, tmp_path):
+    monkeypatch.setattr("jqcli.commands.backtest.make_client", lambda app: object())
+
+    def fake_export(client, backtest_id, **kwargs):
+        kind = kwargs["kind"]
+        if kind == "result":
+            content = (
+                "时间,基准收益,策略收益,当日盈利,当日亏损,当日买入,当日卖出,超额收益(%)\n"
+                "2023-01-03 16:00:00,0,1,1,0,1,0,1\n"
+            ).encode("gbk")
+            filename = "result_1.csv"
+        else:
+            content = b""
+            filename = f"{kind}.zip"
+            from io import BytesIO
+
+            buffer = BytesIO()
+            with zipfile.ZipFile(buffer, "w") as archive:
+                if kind == "transaction":
+                    archive.writestr(
+                        "transaction.csv",
+                        "日期,委托时间,品种,标的,交易类型,下单类型,成交数量,成交价,成交额,委托数量,委托价格,平仓盈亏,手续费,状态,最后更新时间\n",
+                    )
+                elif kind == "position":
+                    archive.writestr(
+                        "position.csv",
+                        "日期,品种,标的,多空,数量,可用数量,收盘价/结算价,市值/价值,盈亏/逐笔浮盈,开仓均价,持仓均价（期货）,保证金,当日盈亏,今手数,盈亏占比,仓位占比\n",
+                    )
+                else:
+                    archive.writestr("log.txt", "")
+            content = buffer.getvalue()
+        return {
+            "id": backtest_id,
+            "resolved_id": "hex-id",
+            "kind": kind,
+            "filename": filename,
+            "content_type": "application/octet-stream",
+            "content": content,
+        }
+
+    monkeypatch.setattr("jqcli.commands.backtest.export_backtest_data", fake_export)
+    output_dir = tmp_path / "exports"
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "--config",
+            str(tmp_path / "c.json"),
+            "--token",
+            "tok",
+            "--format",
+            "json",
+            "backtest",
+            "export",
+            "bt1",
+            "--mode",
+            "all",
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.output)
+    assert len(payload["files"]) == 4
+    assert payload["preprocess"]["output_dir"] == str((output_dir / "clean").resolve())
 
 
 def test_backtest_logs_json(monkeypatch, tmp_path):
