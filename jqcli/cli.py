@@ -121,12 +121,14 @@ def validate_api_base_for_credentials(
 from .commands.auth import auth_group
 from .commands.backtest import backtest_group
 from .commands.community import community_group
+from .commands.live import live_group
 from .commands.strategy import strategy_group
 from .commands.web import web_group
 
 main.add_command(auth_group, "auth")
 main.add_command(backtest_group, "backtest")
 main.add_command(community_group, "community")
+main.add_command(live_group, "live")
 main.add_command(strategy_group, "strategy")
 main.add_command(web_group, "web")
 
