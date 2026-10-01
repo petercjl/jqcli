@@ -8,6 +8,7 @@ from jqcli.api.backtest import (
     delete_backtest_record,
     export_backtest_data,
     get_backtest,
+    get_backtest_detail_table,
     get_backtest_logs,
     get_backtest_result,
     get_backtest_stats,
@@ -350,6 +351,41 @@ def test_export_backtest_zip_waits_for_task(monkeypatch):
         "/algorithm/backtest/getExportStatus",
         "/algorithm/backtest/getExportZip",
     ]
+
+
+@pytest.mark.parametrize("kind,path", [
+    ("transaction", "/algorithm/backtest/transactionInfo"),
+    ("position", "/algorithm/backtest/positionInfo"),
+])
+def test_detail_table_reads_page_without_export_task(kind, path):
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.path, dict(request.url.params)))
+        assert request.url.path == path
+        return httpx.Response(200, json={
+            "code": "00000", "data": {"status": "2", kind: [{"date": "2024-01-04", "security": "123456.XSHG"}], "max": False},
+        })
+
+    payload = get_backtest_detail_table(client_with(handler), "bt1", kind=kind, offset=100, date_offset="2024-01-03")
+
+    assert payload["count"] == 1
+    assert payload["rows"][0]["security"] == "123456.XSHG"
+    assert seen == [(path, {"backtestId": "bt1", "offset": "100", "dateOffset": "2024-01-03"})]
+
+
+def test_export_credit_rule_without_credit_points_to_read_only_tables():
+    def handler(request):
+        if request.url.path == "/algorithm/backtest/detail":
+            return httpx.Response(200, json=BACKTEST_DETAIL_JSON)
+        assert request.url.path == "/algorithm/backtest/addExportZip"
+        assert request.url.params["useCredit"] == "0"
+        return httpx.Response(200, json={
+            "code": 30000, "status": "3", "data": {"ruleKey": "export_transaction"}, "msg": "",
+        })
+
+    with pytest.raises(ApiError, match="backtest transactions/positions"):
+        export_backtest_data(client_with(handler), "bt1", kind="transaction")
 
 
 def test_delete_backtest():
