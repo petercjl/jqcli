@@ -77,11 +77,13 @@ Backtests:
 
 Backtest web export files:
 
-For transaction and position comparison in a short backtest, read the detail-page tables directly. These read-only commands do not create ZIP export tasks or enable credit spending. Inspect `max` in the JSON response: if true, the detail page has reached its record cap and the response is incomplete. Use `--offset` and `--date-offset` only while the page allows pagination; when capped, use the full ZIP export with explicit authorization for any credit spend.
+For transaction and position comparison, read the detail-page tables directly. These read-only commands do not create ZIP export tasks or enable credit spending. A single request returns one page. Add `--all` to collect the complete history: jqcli follows `offset` and `dateOffset`, restarts the date window when the page reports `max`, overlaps the boundary date to avoid omissions, and waits a random 2–3 seconds between every consecutive API request. An incomplete date boundary or stalled page raises an error instead of claiming the result is complete.
 
 ```powershell
 .\.venv\Scripts\jqcli.exe --format json --non-interactive backtest transactions <backtest_id>
 .\.venv\Scripts\jqcli.exe --format json --non-interactive backtest positions <backtest_id>
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest transactions <backtest_id> --all
+.\.venv\Scripts\jqcli.exe --format json --non-interactive backtest positions <backtest_id> --all
 ```
 
 Use this when the user asks for the four downloadable files from the JoinQuant backtest detail page's `导出` menu. Do not substitute `backtest result` or `backtest logs`; those are lower-level JSON/log endpoints and are not the same as the web UI export artifacts.

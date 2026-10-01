@@ -8,6 +8,7 @@ from jqcli.api.backtest import (
     delete_backtest_record,
     export_backtest_data,
     get_backtest,
+    get_all_backtest_detail_table,
     get_backtest_detail_table,
     get_backtest_logs,
     get_backtest_result,
@@ -373,6 +374,55 @@ def test_detail_table_reads_page_without_export_task(kind, path):
     assert payload["count"] == 1
     assert payload["rows"][0]["security"] == "123456.XSHG"
     assert seen == [(path, {"backtestId": "bt1", "offset": "100", "dateOffset": "2024-01-03"})]
+
+
+def test_detail_table_all_pages_waits_and_recovers_after_cap(monkeypatch):
+    pages = [
+        (["2024-01-02", "2024-01-03"], False),
+        (["2024-01-04", "2024-01-05"], True),
+        (["2024-01-05", "2024-01-08"], False),
+        ([], False),
+    ]
+    requests = []
+    delays = []
+
+    def handler(request):
+        assert request.method == "POST"
+        requests.append(dict(request.url.params))
+        dates, capped = pages[len(requests) - 1]
+        return httpx.Response(200, json={"code": "00000", "data": {
+            "status": "2", "transaction": [{"date": day, "tradeDate": day} for day in dates], "max": capped,
+        }})
+
+    monkeypatch.setattr("jqcli.api.backtest.random.uniform", lambda lo, hi: 2.5)
+    monkeypatch.setattr("jqcli.api.backtest.time.sleep", delays.append)
+    result = get_all_backtest_detail_table(client_with(handler), "bt1", kind="transaction")
+
+    assert [row["date"] for row in result["rows"]] == [
+        "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08",
+    ]
+    assert result["count"] == 5
+    assert result["date_resets"] == 1
+    assert result["complete"] is True
+    assert delays == [2.5, 2.5, 2.5]
+    assert requests == [
+        {"backtestId": "bt1"},
+        {"backtestId": "bt1", "offset": "2", "dateOffset": "2024-01-03"},
+        {"backtestId": "bt1", "dateOffset": "2024-01-04"},
+        {"backtestId": "bt1", "offset": "2", "dateOffset": "2024-01-08"},
+    ]
+
+
+def test_detail_table_all_rejects_single_day_cap(monkeypatch):
+    monkeypatch.setattr("jqcli.api.backtest.time.sleep", lambda seconds: None)
+
+    def handler(request):
+        return httpx.Response(200, json={"code": "00000", "data": {
+            "status": "2", "transaction": [{"date": "2024-01-02"}], "max": True,
+        }})
+
+    with pytest.raises(ApiError, match="单日记录达到页面上限"):
+        get_all_backtest_detail_table(client_with(handler), "bt1", kind="transaction")
 
 
 def test_export_credit_rule_without_credit_points_to_read_only_tables():

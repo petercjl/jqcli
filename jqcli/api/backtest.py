@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import base64
 import json
+import random
 import re
 import time
+from collections import Counter
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any
@@ -253,6 +255,71 @@ def get_backtest_detail_table(
         "count": len(rows),
         "rows": rows,
     }
+
+
+def get_all_backtest_detail_table(
+    client: ApiClient,
+    backtest_id: str,
+    *,
+    kind: str,
+    max_pages: int = 500,
+) -> dict[str, Any]:
+    """Read every detail-page batch, pausing 2–3 seconds before each next request."""
+    rows: list[dict[str, Any]] = []
+    seen: Counter[str] = Counter()
+    offset = 0
+    date_offset: str | None = None
+    delays: list[float] = []
+    resets = 0
+    for page_number in range(1, max_pages + 1):
+        if page_number > 1:
+            delay = random.uniform(2.0, 3.0)
+            time.sleep(delay)
+            delays.append(delay)
+        page = get_backtest_detail_table(
+            client, backtest_id, kind=kind, offset=offset, date_offset=date_offset,
+        )
+        batch = page["rows"]
+        if not batch:
+            if page["max"]:
+                raise ApiError("回测详情页达到记录上限，无法继续分页", details={"pages": page_number})
+            return {
+                "id": backtest_id, "kind": kind, "count": len(rows), "pages": page_number,
+                "date_resets": resets, "complete": True, "request_delays_seconds": delays, "rows": rows,
+            }
+        batch_seen: Counter[str] = Counter()
+        new_count = 0
+        for row in batch:
+            key = json.dumps(row, sort_keys=True, ensure_ascii=False, default=str)
+            batch_seen[key] += 1
+            if batch_seen[key] > seen[key]:
+                rows.append(row)
+                seen[key] += 1
+                new_count += 1
+        if page["max"]:
+            if new_count == 0:
+                raise ApiError("回测详情页日期边界未前进，无法保证记录完整", details={"pages": page_number})
+            last_date = str(batch[-1].get("tradeDate") or batch[-1].get("date") or "")
+            earlier_dates = {
+                str(row.get("tradeDate") or row.get("date") or "") for row in rows
+                if str(row.get("tradeDate") or row.get("date") or "") < last_date
+            }
+            if not last_date or not earlier_dates:
+                raise ApiError("单日记录达到页面上限，无法保证记录完整", details={"pages": page_number})
+            date_offset = max(earlier_dates)
+            offset = 0
+            resets += 1
+        elif new_count == 0:
+            return {
+                "id": backtest_id, "kind": kind, "count": len(rows), "pages": page_number,
+                "date_resets": resets, "complete": True, "request_delays_seconds": delays, "rows": rows,
+            }
+        else:
+            offset += len(batch)
+            date_offset = str(batch[-1].get("tradeDate") or batch[-1].get("date") or "")
+            if not date_offset:
+                raise ApiError("回测详情记录缺少日期，无法继续分页", details={"pages": page_number})
+    raise ApiError("回测详情分页次数达到安全上限", details={"max_pages": max_pages, "rows": len(rows)})
 
 
 def _export_response(client: ApiClient, path: str, *, params: dict[str, Any]) -> Any:
