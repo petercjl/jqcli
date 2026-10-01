@@ -363,6 +363,7 @@ def test_detail_table_reads_page_without_export_task(kind, path):
     def handler(request):
         seen.append((request.url.path, dict(request.url.params)))
         assert request.url.path == path
+        assert request.method == "POST"
         return httpx.Response(200, json={
             "code": "00000", "data": {"status": "2", kind: [{"date": "2024-01-04", "security": "123456.XSHG"}], "max": False},
         })

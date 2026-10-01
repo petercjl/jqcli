@@ -236,7 +236,7 @@ def get_backtest_detail_table(
         params["offset"] = offset
     if date_offset:
         params["dateOffset"] = date_offset
-    payload = client.get(f"/algorithm/backtest/{DETAIL_TABLE_PATHS[kind]}", params=params)
+    payload = client.post(f"/algorithm/backtest/{DETAIL_TABLE_PATHS[kind]}", params=params)
     if not isinstance(payload, dict) or payload.get("code") != "00000":
         raise ApiError("读取回测详情表失败", details={"response": payload})
     data = payload.get("data")
