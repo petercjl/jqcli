@@ -1,0 +1,48 @@
+{
+  "schema": "portable-skill-capabilities",
+  "schema_version": "1.0.0",
+  "skill": "jqcli",
+  "target_platforms": [
+    "codex-macos",
+    "sealseek-macos",
+    "sealseek-windows"
+  ],
+  "capabilities": [
+    {
+      "id": "jqcli.research",
+      "purpose": "Write and validate attributable quantitative strategy experiments",
+      "required": true,
+      "required_features": [
+        "source-authoring",
+        "data-validation",
+        "backtest-run",
+        "result-evidence",
+        "iteration"
+      ],
+      "input_fields": [
+        "intent",
+        "source",
+        "parameters"
+      ],
+      "output_fields": [
+        "source",
+        "run_identity",
+        "results",
+        "warnings"
+      ],
+      "side_effects": {
+        "external_mutation": "User-authorized JoinQuant strategy uploads and historical backtests",
+        "cost": "Paid credits require separate authorization",
+        "authorization": "Requested research scope",
+        "may_cost_money": true
+      },
+      "errors": [
+        "DEPENDENCY_MISSING",
+        "CONFIG_REQUIRED",
+        "AUTH_REQUIRED",
+        "OUTPUT_EXISTS",
+        "RESULT_IDENTITY_MISMATCH"
+      ]
+    }
+  ]
+}

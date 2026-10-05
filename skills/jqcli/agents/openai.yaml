@@ -1,0 +1,3 @@
+interface:
+  display_name: "jqcli"
+  short_description: "聚宽策略编写与自动回测"

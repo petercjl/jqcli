@@ -1,0 +1,38 @@
+{
+  "name": "@petercjl/jqcli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "JoinQuant strategy writing, validation and automated backtest lifecycle",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "jqcli": "bin/cli.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "skills",
+    "capabilities.json",
+    "examples",
+    "README.npm.md",
+    "LICENSE",
+    "jqcli",
+    "pyproject.toml"
+  ],
+  "scripts": {
+    "test": "node --test tests-node/*.test.mjs",
+    "check": "node --check bin/cli.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/petercjl/jqcli.git"
+  },
+  "quant": {
+    "kind": "jqcli"
+  }
+}

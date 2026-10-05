@@ -13,7 +13,7 @@ Cause: the CLI was invoked with `python -m jqcli.cli`.
 Fix: use the console script:
 
 ```powershell
-.\.venv\Scripts\jqcli.exe --format json auth status
+jqcli --format json auth status
 ```
 
 ## Missing pytest
@@ -33,7 +33,7 @@ uv sync --extra test
 Then rerun:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q
+python -m pytest -q
 ```
 
 ## Stale Cookie Or Login Redirect
@@ -46,7 +46,7 @@ Symptoms:
 Fix:
 
 ```powershell
-.\.venv\Scripts\jqcli.exe --env-file .env --format json --non-interactive --timeout 30 auth login
+jqcli --env-file .env --format json --non-interactive --timeout 30 auth login
 ```
 
 Then rerun live checks without `--env-file` so the refreshed saved cookie is used:

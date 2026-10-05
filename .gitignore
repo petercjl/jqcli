@@ -8,3 +8,10 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 uv.lock
+
+node_modules/
+build/
+**/build/
+**/*.egg-info/
+**/__pycache__/
+*.tgz

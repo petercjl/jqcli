@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "package": "@petercjl/jqcli",
+  "version": "0.1.0",
+  "commands": [
+    "version",
+    "capabilities",
+    "doctor",
+    "setup",
+    "skill source|status|install|update",
+    "update check|install"
+  ],
+  "business": [
+    "strategy scaffold|check|new|edit|show|ls",
+    "backtest run|logs|stats|positions|transactions|export"
+  ],
+  "platforms": {
+    "codex-macos": "implemented",
+    "sealseek-macos": "implemented, target directory required",
+    "sealseek-windows": "unresolved"
+  },
+  "authorization": "Local files and user-authorized historical strategy research; no real orders or paid credits by default"
+}
