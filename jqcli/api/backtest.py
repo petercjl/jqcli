@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import base64
 import json
+import random
 import re
 import time
+from collections import Counter
 from html import unescape
 from html.parser import HTMLParser
 from typing import Any
@@ -19,6 +21,7 @@ BUILD_ERROR_MESSAGES = {
     "50001": "积分不足，无法继续运行回测。",
 }
 EXPORT_KINDS = {"result", "transaction", "position", "log"}
+DETAIL_TABLE_PATHS = {"transaction": "transactionInfo", "position": "positionInfo"}
 
 
 class _BacktestListParser(HTMLParser):
@@ -217,6 +220,108 @@ def resolve_backtest_export_id(client: ApiClient, backtest_id: str) -> str:
     return str(resolved or backtest_id)
 
 
+def get_backtest_detail_table(
+    client: ApiClient,
+    backtest_id: str,
+    *,
+    kind: str,
+    offset: int = 0,
+    date_offset: str | None = None,
+) -> dict[str, Any]:
+    """Read the transaction or position table shown on the backtest detail page."""
+    if kind not in DETAIL_TABLE_PATHS:
+        raise ApiError(f"不支持的回测详情表：{kind}")
+    if offset < 0:
+        raise ApiError("offset 不能为负数")
+    params: dict[str, Any] = {"backtestId": backtest_id}
+    if offset:
+        params["offset"] = offset
+    if date_offset:
+        params["dateOffset"] = date_offset
+    payload = client.post(f"/algorithm/backtest/{DETAIL_TABLE_PATHS[kind]}", params=params)
+    if not isinstance(payload, dict) or payload.get("code") != "00000":
+        raise ApiError("读取回测详情表失败", details={"response": payload})
+    data = payload.get("data")
+    rows = data.get(kind) if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise ApiError("回测详情表响应缺少记录", details={"response": payload})
+    return {
+        "id": backtest_id,
+        "kind": kind,
+        "offset": offset,
+        "date_offset": date_offset,
+        "state": data.get("status"),
+        "max": bool(data.get("max")),
+        "count": len(rows),
+        "rows": rows,
+    }
+
+
+def get_all_backtest_detail_table(
+    client: ApiClient,
+    backtest_id: str,
+    *,
+    kind: str,
+    max_pages: int = 500,
+) -> dict[str, Any]:
+    """Read every detail-page batch, pausing 2–3 seconds before each next request."""
+    rows: list[dict[str, Any]] = []
+    seen: Counter[str] = Counter()
+    offset = 0
+    date_offset: str | None = None
+    delays: list[float] = []
+    resets = 0
+    for page_number in range(1, max_pages + 1):
+        if page_number > 1:
+            delay = random.uniform(2.0, 3.0)
+            time.sleep(delay)
+            delays.append(delay)
+        page = get_backtest_detail_table(
+            client, backtest_id, kind=kind, offset=offset, date_offset=date_offset,
+        )
+        batch = page["rows"]
+        if not batch:
+            if page["max"]:
+                raise ApiError("回测详情页达到记录上限，无法继续分页", details={"pages": page_number})
+            return {
+                "id": backtest_id, "kind": kind, "count": len(rows), "pages": page_number,
+                "date_resets": resets, "complete": True, "request_delays_seconds": delays, "rows": rows,
+            }
+        batch_seen: Counter[str] = Counter()
+        new_count = 0
+        for row in batch:
+            key = json.dumps(row, sort_keys=True, ensure_ascii=False, default=str)
+            batch_seen[key] += 1
+            if batch_seen[key] > seen[key]:
+                rows.append(row)
+                seen[key] += 1
+                new_count += 1
+        if page["max"]:
+            if new_count == 0:
+                raise ApiError("回测详情页日期边界未前进，无法保证记录完整", details={"pages": page_number})
+            last_date = str(batch[-1].get("tradeDate") or batch[-1].get("date") or "")
+            earlier_dates = {
+                str(row.get("tradeDate") or row.get("date") or "") for row in rows
+                if str(row.get("tradeDate") or row.get("date") or "") < last_date
+            }
+            if not last_date or not earlier_dates:
+                raise ApiError("单日记录达到页面上限，无法保证记录完整", details={"pages": page_number})
+            date_offset = max(earlier_dates)
+            offset = 0
+            resets += 1
+        elif new_count == 0:
+            return {
+                "id": backtest_id, "kind": kind, "count": len(rows), "pages": page_number,
+                "date_resets": resets, "complete": True, "request_delays_seconds": delays, "rows": rows,
+            }
+        else:
+            offset += len(batch)
+            date_offset = str(batch[-1].get("tradeDate") or batch[-1].get("date") or "")
+            if not date_offset:
+                raise ApiError("回测详情记录缺少日期，无法继续分页", details={"pages": page_number})
+    raise ApiError("回测详情分页次数达到安全上限", details={"max_pages": max_pages, "rows": len(rows)})
+
+
 def _export_response(client: ApiClient, path: str, *, params: dict[str, Any]) -> Any:
     return client._send("GET", path, params=params)  # noqa: SLF001 - binary downloads need response headers.
 
@@ -257,6 +362,14 @@ def export_backtest_data(
         },
     )
     if not isinstance(task_payload, dict) or task_payload.get("code") != "00000" or not task_payload.get("data"):
+        if isinstance(task_payload, dict) and str(task_payload.get("code")) == "30000":
+            rule = (task_payload.get("data") or {}).get("ruleKey") if isinstance(task_payload.get("data"), dict) else None
+            if rule in {"export_transaction", "export_position", "export_log"} and not use_credit:
+                raise ApiError(
+                    "聚宽未创建导出任务，返回积分确认规则；本次未消耗积分。"
+                    "可用 backtest transactions/positions 读取回测详情页记录，或确认积分后显式传入 --use-credit。",
+                    details={"response": task_payload},
+                )
         message = str(task_payload.get("msg", "")) if isinstance(task_payload, dict) else str(task_payload)
         raise ApiError(f"创建导出任务失败：{message or task_payload}", details={"response": task_payload})
     task = str(task_payload["data"])

@@ -6,6 +6,48 @@ from click.testing import CliRunner
 from jqcli.cli import main
 
 
+def test_backtest_transactions_json(monkeypatch, tmp_path):
+    monkeypatch.setattr("jqcli.commands.backtest.make_client", lambda app: object())
+    captured = {}
+
+    def fake_table(client, backtest_id, **kwargs):
+        captured.update(kwargs)
+        return {"id": backtest_id, "kind": "transaction", "count": 1, "max": False, "rows": [{"security": "123456.XSHG"}]}
+
+    monkeypatch.setattr("jqcli.commands.backtest.get_backtest_detail_table", fake_table)
+    result = CliRunner().invoke(main, [
+        "--config", str(tmp_path / "c.json"), "--token", "tok", "--format", "json",
+        "backtest", "transactions", "bt1", "--offset", "100", "--date-offset", "2024-01-03",
+    ])
+    assert result.exit_code == 0
+    assert captured == {"kind": "transaction", "offset": 100, "date_offset": "2024-01-03"}
+    assert json.loads(result.output)["rows"][0]["security"] == "123456.XSHG"
+
+
+def test_backtest_transactions_all_uses_paginated_reader(monkeypatch, tmp_path):
+    monkeypatch.setattr("jqcli.commands.backtest.make_client", lambda app: object())
+    called = []
+    monkeypatch.setattr("jqcli.commands.backtest.get_all_backtest_detail_table", lambda client, backtest_id, kind: (
+        called.append((backtest_id, kind)) or {"id": backtest_id, "kind": kind, "count": 2, "complete": True, "rows": [{}, {}]}
+    ))
+    result = CliRunner().invoke(main, [
+        "--config", str(tmp_path / "c.json"), "--token", "tok", "--format", "json",
+        "backtest", "transactions", "bt1", "--all",
+    ])
+    assert result.exit_code == 0
+    assert called == [("bt1", "transaction")]
+    assert json.loads(result.output)["complete"] is True
+
+
+def test_backtest_transactions_all_rejects_manual_offset(tmp_path):
+    result = CliRunner().invoke(main, [
+        "--config", str(tmp_path / "c.json"), "--token", "tok",
+        "backtest", "transactions", "bt1", "--all", "--offset", "1",
+    ])
+    assert result.exit_code != 0
+    assert "--all" in result.output
+
+
 def test_backtest_run_json(monkeypatch, tmp_path):
     captured = {}
     monkeypatch.setattr("jqcli.commands.backtest.make_client", lambda app: object())

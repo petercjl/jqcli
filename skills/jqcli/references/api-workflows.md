@@ -6,3 +6,5 @@ Use strategy ls/show to locate exact target and read current source; new/edit ta
 Read backtest show/stats/result/logs/positions/transactions with the actual ID. Errors precede performance interpretation. `backtest export ID --mode all --output-dir NEW_DIR` downloads result CSV, transaction ZIP, position ZIP and log ZIP, then preprocesses normalized UTF-8 data. Inspect live export help for exact current output option. --mode preprocess operates on already downloaded files without a new platform run.
 
 Authentication/permission failures return to account setup. Unexpected redirects or system-busy replies are not empty strategy data. Record partial coverage and avoid blind duplicate uploads/runs. Outputs retain raw exports alongside normalized files. Return to result analysis or code repair.
+
+Detail transactions/positions default to one page. For complete read-only comparisons use --all; pagination follows offset/dateOffset, overlaps boundary dates and spaces requests by 2–3 seconds. Stalled or incomplete boundaries raise explicit errors. These commands do not create ZIP export tasks or enable credit spending.

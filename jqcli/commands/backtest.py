@@ -13,6 +13,8 @@ from jqcli.api.backtest import (
     delete_backtest_record,
     export_backtest_data,
     get_backtest,
+    get_all_backtest_detail_table,
+    get_backtest_detail_table,
     get_backtest_logs,
     get_backtest_result,
     get_backtest_stats,
@@ -360,6 +362,50 @@ def result(app: AppContext, backtest_id: str, offset: int, user_record_offset: i
         click.echo(f"回测 ID: {payload.get('id', '')}")
         click.echo(f"状态: {state}")
         click.echo(f"数据点: {count}")
+
+
+def _detail_table_command(app: AppContext, backtest_id: str, kind: str, offset: int, date_offset: str | None, all_rows: bool) -> None:
+    if all_rows and (offset or date_offset):
+        raise click.UsageError("--all 不能与 --offset 或 --date-offset 同时使用")
+    client = make_client(app)
+    try:
+        if all_rows:
+            payload = get_all_backtest_detail_table(client, backtest_id, kind=kind)
+        else:
+            payload = get_backtest_detail_table(
+                client, backtest_id, kind=kind, offset=offset, date_offset=date_offset,
+            )
+    finally:
+        close_client(client)
+    if app.json_output:
+        write_json(payload)
+    else:
+        click.echo(f"回测 ID: {backtest_id}")
+        click.echo(f"{kind}: {payload['count']} 条")
+        if payload["max"]:
+            click.echo("页面记录达到上限；需要完整明细时使用导出功能。")
+
+
+@backtest_group.command("transactions")
+@click.argument("backtest_id")
+@click.option("--offset", type=int, default=0, show_default=True)
+@click.option("--date-offset", help="翻页时使用上一页最后一条交易的 tradeDate/date")
+@click.option("--all", "all_rows", is_flag=True, help="分页读取全部记录；每次请求间随机等待2～3秒")
+@click.pass_obj
+def transactions(app: AppContext, backtest_id: str, offset: int, date_offset: str | None, all_rows: bool) -> None:
+    """读取回测详情页显示的逐笔成交。"""
+    _detail_table_command(app, backtest_id, "transaction", offset, date_offset, all_rows)
+
+
+@backtest_group.command("positions")
+@click.argument("backtest_id")
+@click.option("--offset", type=int, default=0, show_default=True)
+@click.option("--date-offset", help="翻页时使用上一页最后一条持仓的 date")
+@click.option("--all", "all_rows", is_flag=True, help="分页读取全部记录；每次请求间随机等待2～3秒")
+@click.pass_obj
+def positions(app: AppContext, backtest_id: str, offset: int, date_offset: str | None, all_rows: bool) -> None:
+    """读取回测详情页显示的每日持仓。"""
+    _detail_table_command(app, backtest_id, "position", offset, date_offset, all_rows)
 
 
 @backtest_group.command("export")
