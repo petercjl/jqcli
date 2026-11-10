@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0.0",
   "package": "@petercjl/jqcli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "business": [
     "strategy scaffold|check|new|edit|show|ls",
     "backtest run|logs|stats|positions|transactions|export",

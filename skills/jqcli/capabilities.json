@@ -43,7 +43,7 @@
       ]
     }
   ],
-  "version": "0.2.0",
+  "version": "0.3.0",
   "host_resolution": {
     "fallback_adapter": "generic",
     "target_required": true
