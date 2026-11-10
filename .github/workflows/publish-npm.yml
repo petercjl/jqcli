@@ -14,6 +14,11 @@ on:
         default: latest
         type: choice
         options: [latest, next]
+      publishOnly:
+        description: Recover a missing npm version from its existing Git tag
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -67,6 +72,25 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Publish @petercjl/jqcli
+        if: ${{ !inputs.publishOnly }}
         run: npx --yes --package @petercjl/npm-release-kit@0.1.4 npm-release-kit ci publish --release "${{ inputs.release }}" --tag "${{ inputs.tag }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Recover exact tagged npm artifact
+        if: inputs.publishOnly
+        env:
+          RELEASE_VERSION: ${{ inputs.release }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node scripts/verify-npm-release.mjs "$RELEASE_VERSION" "$RELEASE_TAG" check-absent
+          release_source="$RUNNER_TEMP/jqcli-release"
+          git worktree add --detach "$release_source" "refs/tags/v$RELEASE_VERSION"
+          cd "$release_source"
+          test "$(node -p 'require("./package.json").version')" = "$RELEASE_VERSION"
+          archive=$(npm pack --pack-destination "$RUNNER_TEMP" --silent)
+          npm publish "$RUNNER_TEMP/$archive" --access public --tag "$RELEASE_TAG" --registry https://registry.npmjs.org/ --loglevel notice
+      - name: Verify public npm release and tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RECOVERY_VERSION: ${{ inputs.publishOnly && inputs.release || '' }}
+        run: node scripts/verify-npm-release.mjs "${RECOVERY_VERSION:-$(node -p 'require("./package.json").version')}" "$RELEASE_TAG"
