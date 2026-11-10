@@ -14,6 +14,12 @@ on:
         default: latest
         type: choice
         options: [latest, next]
+      macosRunner:
+        description: Hosted macOS runner for release QA
+        required: false
+        default: macos-latest
+        type: choice
+        options: [macos-latest, macos-15-intel]
       publishOnly:
         description: Recover a missing npm version from its existing Git tag
         required: false
@@ -32,7 +38,10 @@ jobs:
   qa:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os:
+          - ubuntu-latest
+          - ${{ inputs.macosRunner }}
+          - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
