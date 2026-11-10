@@ -13,6 +13,7 @@ dependencies = [
   "Flask>=3.0",
   "httpx>=0.27",
   "rich>=13.7",
+  "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
@@ -27,6 +28,7 @@ jqcli = "jqcli.cli:main"
 include = ["jqcli*"]
 
 [tool.setuptools.package-data]
+"jqcli.api" = ["*.mjs"]
 "jqcli.web" = ["static/*", "templates/*"]
 
 [tool.pytest.ini_options]

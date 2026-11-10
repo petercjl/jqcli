@@ -82,6 +82,9 @@ def resolve_live_id(client: ApiClient, live_id: str | None, name_filter: str | N
         raise UsageError("请提供 live_id，或使用 --name 按名称匹配")
     live_payload = list_live_trades(client, process="running")
     matches = [item for item in live_payload.get("items", []) if name_filter in str(item.get("name", ""))]
+    exact = [item for item in matches if item.get('name') == name_filter]
+    if exact:
+        matches = exact
     if not matches:
         raise UsageError(f"没有找到名称包含 {name_filter!r} 的运行中模拟交易")
     if len(matches) > 1:
@@ -150,3 +153,49 @@ def logs(app: AppContext, live_id: str | None, name_filter: str | None, limit: i
         if payload.get("name"):
             click.echo(f"模拟交易: {payload.get('name')}")
         render_logs(payload)
+
+
+@live_group.command("transactions")
+@click.argument("live_id", required=False)
+@click.option("--name", "name_filter", help="唯一匹配运行中模拟盘")
+@click.option("--date", "query_date", help="默认北京时间今天，YYYY-MM-DD")
+@click.option("--limit", type=click.IntRange(1, 10000), default=1000)
+@click.option('--source', type=click.Choice(['api', 'page']), default='api', show_default=True, help='API直读；page为显式浏览器核查')
+@click.pass_obj
+def transactions(app, live_id, name_filter, query_date, limit, source):
+    """读取指定日期完整成交与订单状态，默认API直读。"""
+    _intraday_query(app, live_id, name_filter, query_date, limit, False, source)
+
+
+@live_group.command("holdings")
+@click.argument("live_id", required=False)
+@click.option("--name", "name_filter", help="唯一匹配运行中模拟盘")
+@click.option("--date", "query_date", help="默认北京时间今天，YYYY-MM-DD")
+@click.option("--limit", type=click.IntRange(1, 10000), default=1000)
+@click.option('--source', type=click.Choice(['api', 'page']), default='api', show_default=True, help='API直读；page为显式浏览器核查')
+@click.pass_obj
+def holdings(app, live_id, name_filter, query_date, limit, source):
+    """由同日成交前快照和已成交记录还原盘中持仓数量。"""
+    _intraday_query(app, live_id, name_filter, query_date, limit, True, source)
+
+
+def _intraday_query(app, live_id, name_filter, date, limit, holdings, source):
+    from jqcli.api.live_holdings import get_live_holdings, get_live_transactions
+    client = make_client(app)
+    try:
+        live_id, name = resolve_live_id(client, live_id, name_filter)
+        query = get_live_holdings if holdings else get_live_transactions
+        kwargs = {'date': date, 'limit': limit, 'name': name}
+        if source != 'api':
+            kwargs['source'] = source
+        payload = query(client, live_id, **kwargs)
+        if name:
+            payload['name'] = name
+    finally:
+        close_client(client)
+    if app.json_output or not holdings:
+        write_json(payload)
+    else:
+        click.echo("盘中持仓数量还原；实时市值、权重与可卖数量未知")
+        click.echo(f"基准时间: {payload['baseline_time']}  推算现金: {payload['reconstructed_cash']}")
+        render_positions_table(payload)

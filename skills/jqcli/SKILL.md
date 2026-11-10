@@ -13,6 +13,21 @@ Use the CLI entry from the current Agent's installation receipt, `.runtime/bin/c
 
 Credentials and configuration are external. Check `jqcli --format json auth status` and read [api-workflows.md](references/api-workflows.md) at the platform execution node. Keep authentication secrets out of status output and research artifacts.
 
+## Intraday simulated holdings
+For today's simulated portfolio use `live holdings --name NAME` and read
+[api-workflows.md](references/api-workflows.md). The default HTTP API transport uses
+configured credentials and does not require Chrome, CDP, or an open page. Resolve the
+exact name each run; encrypted IDs may rotate. It combines a same-day timestamped
+position snapshot with complete confirmed transactions, verifies two matching reads,
+and returns quantities, fees, order statuses and evidence times. This is not a live
+valuation. `live transactions --name NAME --date YYYY-MM-DD` also reads the API directly.
+`live positions` alone may lag intraday fills. Incomplete, changing, partial or ambiguous
+inputs fail explicitly; retain the previous trusted state and retry within the caller's
+budget. `--source page` is an explicit read-only browser verification branch requiring
+one matching logged-in local Chrome page. No automatic browser launch or transport
+fallback occurs. Authentication failures return to account setup. Return to result
+reporting; this branch grants no order authority.
+
 ## Main line
 1. **Select and write.** Classify new, modify, repair or migration; identify assets/frequency/universe/benchmark/date/capital. For writing or reviewing read [strategy-writing.md](references/strategy-writing.md). Use `strategy scaffold --name NAME --root DIR`; preserve user-owned existing source with a recoverable version. Write complete strategy.py and Chinese README recording rules/parameters/version and assumptions. Use global callbacks, initialize, real-price and future-data options where applicable; respect data shape, scheduling and order semantics. Logs include concise HUMAN and structured JQ_AUDIT metadata/signals.
 2. **Check.** Run `strategy check --file SOURCE` (AST only, not platform execution). Resolve errors and inspect warnings. Verify no top-level orders/research-only APIs/future data. A local syntax/check pass is not a successful broker backtest.

@@ -4,7 +4,8 @@
   "version": "0.2.0",
   "business": [
     "strategy scaffold|check|new|edit|show|ls",
-    "backtest run|logs|stats|positions|transactions|export"
+    "backtest run|logs|stats|positions|transactions|export",
+    "live ls|positions|transactions|holdings|logs"
   ],
   "authorization": "Local files and user-authorized historical strategy research; no real orders or paid credits by default",
   "schemaVersion": 1,
@@ -335,5 +336,16 @@
     "configuration": "Stable latest detection; explicit authorization for installation.",
     "disable": "JQCLI_UPDATE_CHECK=0",
     "recovery": "Offline detection preserves the running task. Inspect update status and activation journal before retrying."
+  },
+  "live_holdings": {
+    "source": "snapshot_plus_confirmed_transactions",
+    "realtime_valuation": false,
+    "incomplete_input": "error",
+    "read_only": true,
+    "default_transport": "http",
+    "browser_required": false,
+    "verification_transport": "page (explicit --source page)",
+    "consistency": "two_matching_position_and_transaction_reads",
+    "transactions_endpoint": "/algorithm/live/transactionDetail"
   }
 }
