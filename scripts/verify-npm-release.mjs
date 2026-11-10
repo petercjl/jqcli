@@ -23,11 +23,13 @@ if (mode === 'check-absent') {
   console.log(JSON.stringify(observed));
 } else {
   let observed;
-  for (let attempt = 0; attempt < 12; attempt++) {
+  // Public npm metadata can lag behind a successful OIDC publish.
+  const attempts = 40;
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try { observed = await observe(); }
     catch (error) { observed = { error: error.message }; }
     if (observed.published && observed.tagVersion === version) break;
-    if (attempt < 11) await setTimeout(5000);
+    if (attempt + 1 < attempts) await setTimeout(15000);
   }
   console.log(JSON.stringify({ name, version, tag, ...observed }));
   if (!observed.published || observed.tagVersion !== version) process.exitCode = 1;
