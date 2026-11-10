@@ -15,15 +15,20 @@
     "lib",
     "skills",
     "capabilities.json",
-    "examples",
-    "README.npm.md",
-    "LICENSE",
     "jqcli",
-    "pyproject.toml"
+    "pyproject.toml",
+    "INSTALL.md",
+    "UPDATE.md",
+    "release-integrity.json",
+    "scripts/install-notice.mjs",
+    "scripts/release-identity.mjs"
   ],
   "scripts": {
-    "test": "node --test tests-node/*.test.mjs",
-    "check": "node --check bin/cli.mjs"
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check bin/cli.mjs",
+    "postinstall": "node scripts/install-notice.mjs",
+    "version": "node scripts/release-identity.mjs sync && git add capabilities.json skills/jqcli/capabilities.json pyproject.toml jqcli/__init__.py release-integrity.json",
+    "prepack": "node scripts/release-identity.mjs"
   },
   "publishConfig": {
     "access": "public"
@@ -34,5 +39,8 @@
   },
   "quant": {
     "kind": "jqcli"
+  },
+  "agentPackage": {
+    "kind": "cli-skill"
   }
 }

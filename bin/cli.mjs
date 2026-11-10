@@ -1,2 +1,3 @@
 #!/usr/bin/env node
-import {main} from '../lib/plugin.mjs';process.exitCode=main();
+import { main } from '../lib/plugin.mjs';
+process.exitCode = await main();

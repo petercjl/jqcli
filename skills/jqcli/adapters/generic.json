@@ -1,15 +1,21 @@
 {
   "schema": "portable-skill-adapter",
   "schema_version": "1.0.0",
-  "platform": "sealseek-windows",
+  "platform": "generic",
   "mappings": [
     {
       "capability_id": "jqcli.research",
-      "status": "unresolved",
-      "features": [],
+      "status": "implemented",
+      "features": [
+        "source-authoring",
+        "data-validation",
+        "backtest-run",
+        "result-evidence",
+        "iteration"
+      ],
       "implementation": {
         "kind": "cli",
-        "command": "jqcli",
+        "command": "node <resolved Skill directory>/.runtime/bin/cli.mjs",
         "discovery": [
           "version",
           "capabilities --json",
@@ -18,7 +24,7 @@
         ],
         "normalization": "Preserve JSON status, source/run IDs, artifacts and errors; the Agent performs authorship and interpretation with host file/terminal capabilities."
       },
-      "notes": "macOS CLI mechanics verified separately; fresh-session Agent discovery remains untested. Supply SealSeek target directory explicitly."
+      "notes": "Resolve the current host Skill directory explicitly and verify native host discovery separately. Node.js 22+ and Python 3.11+ are required."
     }
   ]
 }

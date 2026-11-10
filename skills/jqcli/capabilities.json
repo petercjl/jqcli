@@ -3,9 +3,7 @@
   "schema_version": "1.0.0",
   "skill": "jqcli",
   "target_platforms": [
-    "codex-macos",
-    "sealseek-macos",
-    "sealseek-windows"
+    "generic"
   ],
   "capabilities": [
     {
@@ -44,5 +42,10 @@
         "RESULT_IDENTITY_MISMATCH"
       ]
     }
-  ]
+  ],
+  "version": "0.1.1",
+  "host_resolution": {
+    "fallback_adapter": "generic",
+    "target_required": true
+  }
 }

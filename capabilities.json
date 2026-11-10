@@ -1,23 +1,339 @@
 {
   "schema_version": "1.0.0",
   "package": "@petercjl/jqcli",
-  "version": "0.1.0",
-  "commands": [
-    "version",
-    "capabilities",
-    "doctor",
-    "setup",
-    "skill source|status|install|update",
-    "update check|install"
-  ],
+  "version": "0.1.1",
   "business": [
     "strategy scaffold|check|new|edit|show|ls",
     "backtest run|logs|stats|positions|transactions|export"
   ],
-  "platforms": {
-    "codex-macos": "implemented",
-    "sealseek-macos": "implemented, target directory required",
-    "sealseek-windows": "unresolved"
+  "authorization": "Local files and user-authorized historical strategy research; no real orders or paid credits by default",
+  "schemaVersion": 1,
+  "kind": "cli-skill",
+  "skills": [
+    "jqcli"
+  ],
+  "adapters": {
+    "generic": {
+      "path": "skills/jqcli/adapters/generic.json"
+    }
   },
-  "authorization": "Local files and user-authorized historical strategy research; no real orders or paid credits by default"
+  "genericAdapter": "skills/jqcli/adapters/generic.json",
+  "runtime": {
+    "node": ">=22",
+    "python": ">=3.11 with pip",
+    "operatingSystems": [
+      "macos",
+      "linux",
+      "windows"
+    ]
+  },
+  "commandContracts": {
+    "version": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "capabilities": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "doctor": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "setup": {
+      "options": {
+        "--python": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "local-write"
+    },
+    "skill source": {
+      "options": {
+        "--name": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "skill status": {
+      "options": {
+        "--agent": {
+          "type": "string"
+        },
+        "--target": {
+          "type": "string"
+        },
+        "--name": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "skill install": {
+      "options": {
+        "--agent": {
+          "type": "string"
+        },
+        "--target": {
+          "type": "string"
+        },
+        "--name": {
+          "type": "string"
+        },
+        "--python": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        },
+        "--adopt": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "local-write"
+    },
+    "skill update": {
+      "options": {
+        "--agent": {
+          "type": "string"
+        },
+        "--target": {
+          "type": "string"
+        },
+        "--name": {
+          "type": "string"
+        },
+        "--python": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        },
+        "--adopt": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "local-write"
+    },
+    "update status": {
+      "options": {
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "update check": {
+      "options": {
+        "--tag": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "none"
+    },
+    "update install": {
+      "options": {
+        "--agent": {
+          "type": "string"
+        },
+        "--target": {
+          "type": "string"
+        },
+        "--name": {
+          "type": "string"
+        },
+        "--version": {
+          "type": "string"
+        },
+        "--python": {
+          "type": "string"
+        },
+        "--json": {
+          "type": "boolean"
+        },
+        "--yes": {
+          "type": "boolean"
+        }
+      },
+      "sideEffects": "package-and-skill-update"
+    }
+  },
+  "discoveryContract": {
+    "schemaVersion": 1,
+    "commandsField": "commandContracts",
+    "entryPoints": [
+      {
+        "argv": [
+          "capabilities",
+          "--json"
+        ],
+        "result": "manifest"
+      }
+    ],
+    "version": {
+      "command": "version",
+      "argv": [
+        "version",
+        "--json"
+      ],
+      "fields": {
+        "package": {
+          "field": "package",
+          "type": "string"
+        },
+        "version": {
+          "field": "version",
+          "type": "string"
+        }
+      }
+    },
+    "skillCollection": {
+      "namesField": "skills",
+      "default": "jqcli",
+      "selector": {
+        "option": "--name",
+        "type": "string"
+      },
+      "enumeration": {
+        "argv": [
+          "skill",
+          "source",
+          "--json"
+        ],
+        "itemsField": "items",
+        "completeField": "complete"
+      },
+      "namedSource": [
+        "skill",
+        "source",
+        "--name",
+        "{skill}",
+        "--json"
+      ]
+    }
+  },
+  "maintenanceContract": {
+    "schemaVersion": 1,
+    "agentEligibility": "valid-name-with-generic-fallback",
+    "hostDiscoveryAuthority": "host",
+    "targetOptions": {
+      "--target": {
+        "kind": "skill-directory"
+      }
+    },
+    "source": {
+      "name": {
+        "field": "name",
+        "type": "string"
+      },
+      "package": {
+        "field": "package",
+        "type": "string"
+      },
+      "version": {
+        "field": "version",
+        "type": "string"
+      },
+      "path": {
+        "field": "path",
+        "type": "string"
+      }
+    },
+    "status": {
+      "name": {
+        "field": "name",
+        "type": "string"
+      },
+      "package": {
+        "field": "package",
+        "type": "string"
+      },
+      "version": {
+        "field": "version",
+        "type": "string"
+      },
+      "target": {
+        "field": "target",
+        "type": "string"
+      },
+      "installed": {
+        "field": "installed",
+        "type": "boolean"
+      },
+      "managed": {
+        "field": "managed",
+        "type": "boolean"
+      },
+      "current": {
+        "field": "current",
+        "type": "boolean"
+      },
+      "edited": {
+        "field": "edited",
+        "type": "boolean"
+      },
+      "verification": {
+        "field": "verification",
+        "type": "object"
+      },
+      "recovery": {
+        "field": "recovery",
+        "type": "object"
+      }
+    }
+  },
+  "installationLifecycle": {
+    "skillRequired": true,
+    "updateRequiresSkillSync": true,
+    "required_components": [
+      "cli",
+      "skill"
+    ],
+    "agentNeutral": true,
+    "targetRequired": true,
+    "hostRegistrationRequired": true,
+    "installationMode": "copy",
+    "sharedLinksAllowed": false,
+    "isolatedRuntimeRequired": true,
+    "installGuide": "INSTALL.md",
+    "updateGuide": "UPDATE.md",
+    "install": "Resolve the current Agent directory and run skill install --agent NAME --target PATH.",
+    "update": "Run update install for the exact selected target; use the activated entry from its receipt.",
+    "verification": "Verify version, Python dependencies, managed hashes and current status; load the Skill through host discovery."
+  },
+  "automaticUpdates": {
+    "enabledByDefault": true,
+    "defaultMode": "notify",
+    "intervalHours": 24,
+    "timeoutMs": 1500,
+    "trigger": "Ordinary strategy and backtest tasks except help and status/poll commands",
+    "configuration": "Stable latest detection; explicit authorization for installation.",
+    "disable": "JQCLI_UPDATE_CHECK=0",
+    "recovery": "Offline detection preserves the running task. Inspect update status and activation journal before retrying."
+  }
 }
