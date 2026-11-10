@@ -1,0 +1,2 @@
+# Keep release integrity hashes independent of Git checkout platform.
+* text=auto eol=lf
